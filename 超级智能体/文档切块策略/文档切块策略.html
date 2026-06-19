@@ -1,0 +1,1007 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>文档切块策略详解</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --primary: #1E3A5F;      /* STRUCTURE 结构切块 */
+    --secondary: #2563EB;    /* RECURSIVE 递归切块 */
+    --accent: #059669;       /* SEMANTIC 语义切块 */
+    --llm: #7c3aed;          /* LLM 智能切块 */
+    --on-primary: #FFFFFF;
+    --destructive: #DC2626;
+    --background: #E8EBEF;   /* 浅灰底，柔和不刺眼 */
+    --surface: #F2F4F7;
+    --foreground: #1a2233;
+    --muted: #E2E6EC;
+    --border: #CFD5DE;
+    --font-sans: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-mono: 'JetBrains Mono', 'SF Mono', monospace;
+    --radius: 0;
+    --space-xs: 4px;
+    --space-sm: 8px;
+    --space-md: 16px;
+    --space-lg: 24px;
+    --space-xl: 32px;
+    --space-2xl: 48px;
+    --space-3xl: 64px;
+    --max-width: 980px;
+    --line-length: 720px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: var(--font-sans);
+    background: var(--background);
+    color: var(--foreground);
+    line-height: 1.8;
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3, h4 { font-weight: 600; line-height: 1.35; color: var(--foreground); }
+  h1 { font-size: 30px; letter-spacing: -0.3px; }
+  h2 { font-size: 22px; margin-top: var(--space-2xl); margin-bottom: var(--space-md); }
+  h3 { font-size: 18px; margin-top: var(--space-xl); margin-bottom: var(--space-sm); }
+  h4 { font-size: 16px; margin-top: var(--space-lg); }
+  p, li { font-size: 16px; color: var(--foreground); max-width: var(--line-length); }
+  p { margin-bottom: var(--space-md); }
+  a { color: var(--secondary); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code {
+    font-family: var(--font-mono);
+    font-size: 14px;
+    background: var(--muted);
+    padding: 2px 6px;
+    color: var(--primary);
+  }
+  strong { font-weight: 600; color: var(--primary); }
+
+  .container { max-width: var(--max-width); margin: 0 auto; padding: 0 var(--space-lg); }
+
+  /* === Header === */
+  .site-header {
+    background: var(--primary);
+    color: var(--on-primary);
+    padding: var(--space-3xl) 0 var(--space-2xl);
+  }
+  .site-header h1 { color: var(--on-primary); font-size: 32px; letter-spacing: -0.5px; }
+  .site-header .subtitle { font-size: 16px; font-weight: 300; opacity: 0.82; margin-top: var(--space-sm); max-width: 640px; }
+  .site-header .meta-badge {
+    display: flex; gap: var(--space-md); margin-top: var(--space-lg);
+    font-family: var(--font-mono); font-size: 12px; opacity: 0.7;
+  }
+
+  /* === Nav === */
+  .nav-bar { background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100; }
+  .nav-bar ul { list-style: none; display: flex; gap: 0; overflow-x: auto; padding: 0; margin: 0; }
+  .nav-bar li a {
+    display: block; padding: 11px 18px; font-size: 14px; font-weight: 500;
+    color: var(--foreground); white-space: nowrap;
+    border-bottom: 2px solid transparent; transition: border-color 0.2s, color 0.2s;
+  }
+  .nav-bar li a:hover { text-decoration: none; color: var(--primary); border-bottom-color: var(--primary); }
+
+  /* === Main === */
+  .main { padding: var(--space-2xl) 0 var(--space-3xl); }
+  section { margin-bottom: var(--space-2xl); }
+
+  /* === 策略配色条 === */
+  .strat-tag {
+    display: inline-block; font-family: var(--font-mono); font-size: 12px; font-weight: 600;
+    padding: 3px 10px; color: #fff; letter-spacing: 0.5px;
+  }
+  .strat-tag.structure { background: var(--primary); }
+  .strat-tag.recursive { background: var(--secondary); }
+  .strat-tag.semantic { background: var(--accent); }
+  .strat-tag.llm { background: var(--llm); }
+
+  .role-tag {
+    display: inline-block; font-family: var(--font-mono); font-size: 11px; font-weight: 500;
+    padding: 2px 8px; border: 1px solid var(--border); color: #5a6678; margin-left: 6px;
+  }
+
+  /* === 策略卡片：彩色侧边条 === */
+  .strat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 5px solid var(--border);
+    padding: var(--space-lg);
+    margin: var(--space-lg) 0;
+  }
+  .strat-card.structure { border-left-color: var(--primary); }
+  .strat-card.recursive { border-left-color: var(--secondary); }
+  .strat-card.semantic { border-left-color: var(--accent); }
+  .strat-card.llm { border-left-color: var(--llm); }
+  .strat-card .card-head {
+    display: flex; align-items: center; gap: var(--space-sm); flex-wrap: wrap;
+    margin-bottom: var(--space-md);
+  }
+  .strat-card .card-head h3 { margin: 0; }
+  .strat-card .card-thesis {
+    font-size: 16px; color: #44516a; margin-bottom: var(--space-md);
+    border-left: 0; padding-left: 0; max-width: var(--line-length);
+  }
+
+  /* === 代码块 === */
+  .code-block {
+    display: block; padding: var(--space-md) var(--space-lg);
+    background: #1b2030; color: #e4e7eb;
+    margin: var(--space-md) 0; font-size: 14px; line-height: 1.75;
+    font-family: var(--font-mono); white-space: pre-wrap; overflow-x: auto;
+    border-left: 3px solid #3a4258;
+  }
+  .code-block.structure { border-left-color: var(--primary); }
+  .code-block.recursive { border-left-color: var(--secondary); }
+  .code-block.semantic { border-left-color: var(--accent); }
+  .code-block.llm { border-left-color: var(--llm); }
+  .code-block .cm { color: #7c88a3; }     /* 注释 */
+  .code-block .kw { color: #8ec5fc; }     /* 关键字/方法名 */
+  .code-block .st { color: #b5e8b5; }     /* 字符串 */
+  .code-block .num { color: #f0c674; }    /* 数字 */
+  .code-block .hl { color: #ffd479; }     /* 高亮行标注 */
+  .code-block .out { color: #c9b6ff; }    /* 输出 */
+
+  /* === Callout === */
+  .callout {
+    background: var(--muted);
+    border-left: 3px solid var(--secondary);
+    padding: var(--space-md) var(--space-lg);
+    margin: var(--space-md) 0;
+    font-size: 15px;
+    max-width: var(--line-length);
+  }
+  .callout strong { color: var(--secondary); }
+  .callout.warn { border-left-color: #d97706; }
+  .callout.warn strong { color: #d97706; }
+  .callout.primary { border-left-color: var(--primary); }
+  .callout.primary strong { color: var(--primary); }
+  .callout.accent { border-left-color: var(--accent); }
+  .callout.accent strong { color: var(--accent); }
+  .callout.llm { border-left-color: var(--llm); }
+  .callout.llm strong { color: var(--llm); }
+
+  /* === 流水线编排图（签名元素） === */
+  .pipeline-diagram {
+    background: var(--surface); border: 1px solid var(--border);
+    padding: var(--space-lg); margin: var(--space-lg) 0;
+  }
+  .pipeline-row { margin-bottom: var(--space-md); }
+  .pipeline-row:last-child { margin-bottom: 0; }
+  .pipeline-label {
+    font-family: var(--font-mono); font-size: 12px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.6px; color: #5a6678;
+    margin-bottom: var(--space-sm);
+  }
+  .pipeline-flow { display: flex; align-items: stretch; gap: 0; overflow-x: auto; padding-bottom: var(--space-xs); flex-wrap: wrap; }
+  .pf-node {
+    flex-shrink: 0; padding: 9px 14px; font-size: 13px; font-weight: 500; color: #fff;
+    font-family: var(--font-mono); white-space: nowrap;
+  }
+  .pf-node.structure { background: var(--primary); }
+  .pf-node.recursive { background: var(--secondary); }
+  .pf-node.semantic { background: var(--accent); }
+  .pf-node.llm { background: var(--llm); }
+  .pf-node.raw { background: #6b7588; }
+  .pf-node.out { background: transparent; border: 1px dashed var(--border); color: #5a6678; }
+  .pf-arr { padding: 0 8px; color: var(--border); font-size: 16px; font-family: var(--font-mono); display: flex; align-items: center; }
+  .pf-note { font-size: 13px; color: #6b7588; margin-top: var(--space-sm); max-width: var(--line-length); }
+
+  /* === 表格 === */
+  .table-wrap { overflow-x: auto; margin: var(--space-md) 0; }
+  table { width: 100%; border-collapse: collapse; font-size: 15px; }
+  thead th {
+    background: var(--primary); color: var(--on-primary);
+    padding: 10px 14px; text-align: left; font-weight: 500;
+    font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  tbody td { padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tbody tr:hover { background: var(--muted); }
+  td code { font-size: 13px; }
+
+  /* === 示例区 === */
+  .example {
+    margin: var(--space-md) 0; border: 1px solid var(--border); background: #fff;
+  }
+  .example-head {
+    font-size: 12px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.5px; padding: 8px 14px; color: #5a6678;
+    background: var(--muted); border-bottom: 1px solid var(--border);
+  }
+  .example-head.structure { color: var(--primary); }
+  .example-head.recursive { color: var(--secondary); }
+  .example-head.semantic { color: var(--accent); }
+  .example-head.llm { color: var(--llm); }
+  .example-body { padding: var(--space-md) var(--space-lg); }
+
+  /* 标注列表（示例过程推演） */
+  .trace { list-style: none; padding: 0; max-width: none; }
+  .trace li {
+    padding: 8px 0 8px 12px; font-size: 14px; border-bottom: 1px dashed var(--border);
+    max-width: none; line-height: 1.7;
+  }
+  .trace li:last-child { border-bottom: none; }
+  .trace .step-no {
+    font-family: var(--font-mono); font-weight: 600; color: #94a3b8; margin-right: 8px;
+  }
+  .trace .var { color: var(--secondary); font-family: var(--font-mono); font-size: 13px; }
+  .trace .accent-text { color: var(--accent); font-weight: 600; }
+
+  /* 关键点徽标 */
+  .key-point { display: inline-block; font-family: var(--font-mono); font-size: 11px; font-weight: 600; padding: 2px 9px; letter-spacing: 0.3px; color: #fff; }
+  .key-point.design { background: var(--primary); }
+  .key-point.algo { background: var(--accent); }
+  .key-point.fallback { background: #d97706; }
+  .key-point.llm { background: var(--llm); }
+
+  /* 双栏 */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-lg); margin: var(--space-md) 0; }
+  @media (max-width: 680px) { .two-col { grid-template-columns: 1fr; } }
+  .col-cell { background: var(--muted); padding: var(--space-md); border-left: 2px solid var(--border); font-size: 14px; }
+  .col-cell strong { display: block; margin-bottom: 4px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.3px; }
+  .col-cell.b1 { border-left-color: var(--primary); }
+  .col-cell.b2 { border-left-color: var(--secondary); }
+  .col-cell.b3 { border-left-color: var(--accent); }
+  .col-cell.b4 { border-left-color: var(--llm); }
+
+  /* token 集合可视化 */
+  .token-vis {
+    font-family: var(--font-mono); font-size: 13px; background: var(--muted);
+    padding: var(--space-md); margin: var(--space-sm) 0; line-height: 2;
+  }
+  .tok { display: inline-block; padding: 1px 7px; margin: 2px; background: #fff; border: 1px solid var(--border); }
+  .tok.inter { background: #d6eae0; border-color: var(--accent); color: #1a5a3a; }
+  .tok-label { color: #5a6678; font-size: 12px; }
+  .tok.only-a { background: #d4dcec; border-color: #b9c6e0; color: #1e3a5f; }
+  .tok.only-b { background: #e6e9ee; border-color: #cfd4dc; color: #5a6678; }
+  .set-op { font-family: var(--font-mono); font-size: 14px; background: var(--muted); padding: var(--space-md); margin: var(--space-sm) 0; line-height: 2.3; }
+  .set-op .op-label { color: #5a6678; font-size: 12px; }
+  .set-op .op-sym { color: var(--accent); font-weight: 600; margin-right: 6px; }
+  .set-op .op-result { color: var(--foreground); font-weight: 600; }
+  .set-op .op-line { margin-bottom: 6px; }
+  .set-op .op-formula { margin-top: 8px; padding-top: 10px; border-top: 1px dashed var(--border); }
+  .set-legend { font-size: 13px; color: #5a6678; margin-bottom: 8px; }
+  .set-legend .tok { font-size: 11px; padding: 1px 6px; margin: 0 2px; }
+
+  /* === Footer === */
+  .site-footer { border-top: 1px solid var(--border); padding: var(--space-xl) 0; font-size: 13px; color: #94a3b8; text-align: center; }
+
+  @media (max-width: 680px) {
+    body { font-size: 15px; }
+    .container { padding: 0 var(--space-md); }
+    h1 { font-size: 24px; }
+    h2 { font-size: 19px; }
+    .site-header h1 { font-size: 26px; }
+    .nav-bar li a { padding: 10px 14px; font-size: 13px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ HEADER ============ -->
+<header class="site-header">
+  <div class="container">
+    <h1>文档切块策略详解</h1>
+    <div class="subtitle">逐行拆解 DocumentStrategyServiceImpl 的四种切块方法 — 结构、递归、语义、LLM，以及它们如何在父/子双流水线中编排。</div>
+    <div class="meta-badge">
+      <span>DOC-CHUNK-01</span>
+      <span>v1.0</span>
+      <span>2026-06</span>
+      <span>DocumentStrategyServiceImpl.java</span>
+    </div>
+  </div>
+</header>
+
+<!-- ============ NAV ============ -->
+<nav class="nav-bar">
+  <div class="container">
+    <ul>
+      <li><a href="#overview">总览 · 流水线调度</a></li>
+      <li><a href="#structure">STRUCTURE 结构切块</a></li>
+      <li><a href="#recursive">RECURSIVE 递归切块</a></li>
+      <li><a href="#semantic">SEMANTIC 语义切块</a></li>
+      <li><a href="#llm">LLM 智能切块</a></li>
+      <li><a href="#compare">对比与推荐</a></li>
+    </ul>
+  </div>
+</nav>
+
+<!-- ============ MAIN ============ -->
+<main class="main">
+  <div class="container">
+
+    <!-- ======== 总览 ======== -->
+    <section id="overview">
+      <h2>总览 — 四种切块如何在流水线中调度</h2>
+      <p>文档切块（chunking）是 RAG 的地基：切得太碎，单个块语义不完整；切得太长，召回噪声大、向量化成本高。这个类用 <strong>四种切块策略 + 双流水线编排</strong> 来平衡这一矛盾。</p>
+
+      <p>核心调度入口是 <code>executePipeline</code>。它接收一个候选块列表 <code>currentChunks</code>，按步骤顺序依次套用每种策略，前一步的输出就是后一步的输入——一个典型的管道（pipeline）：</p>
+
+<div class="code-block structure"><span class="cm">// executePipeline — 四种策略的分发与串联</span>
+<span class="kw">private</span> List&lt;ChunkCandidate&gt; executePipeline(List&lt;ChunkCandidate&gt; sourceList,
+                                             List&lt;SuperAgentDocumentStrategyStep&gt; orderedSteps,
+                                             DocumentStrategyPipelineTypeEnum pipelineType) {
+    List&lt;ChunkCandidate&gt; currentChunks = cleanupChunkList(sourceList);
+    <span class="kw">for</span> (SuperAgentDocumentStrategyStep step : orderedSteps) {
+        DocumentStrategyTypeEnum strategyType = DocumentStrategyTypeEnum.getRc(step.getStrategyType());
+        <span class="kw">if</span> (strategyType == <span class="kw">null</span>) <span class="kw">continue</span>;
+        currentChunks = <span class="kw">switch</span> (strategyType) {
+            <span class="kw">case</span> STRUCTURE  -&gt; applyStructureChunking(currentChunks, pipelineType);
+            <span class="kw">case</span> RECURSIVE  -&gt; applyRecursiveChunking(currentChunks, pipelineType);
+            <span class="kw">case</span> SEMANTIC   -&gt; applySemanticChunking(currentChunks, pipelineType);
+            <span class="kw">case</span> LLM        -&gt; applyLlmChunking(currentChunks, pipelineType);
+        };
+        currentChunks = cleanupChunkList(currentChunks);  <span class="cm">// 每步后去重去空</span>
+    }
+    <span class="kw">return</span> cleanupChunkList(currentChunks);
+}</div>
+
+      <div class="callout primary">
+        <strong>关键设计：链式精切。</strong> 策略不是"四选一"，而是按顺序串联。常见组合是 <code>STRUCTURE → RECURSIVE</code>（先按章节切大块，超长章节再递归精切）或 <code>SEMANTIC → RECURSIVE</code>（先按语义切，超长再兜底）。每一步都让块变得更细，<code>cleanupChunkList</code> 在每步之间按 <code>canonicalPath + itemIndex + 文本</code> 去重，避免重复块污染索引。
+      </div>
+
+      <h3>父块 / 子块双流水线</h3>
+      <p>系统维护两条独立流水线，分别产出不同粒度的块：</p>
+      <div class="pipeline-diagram">
+        <div class="pipeline-row">
+          <div class="pipeline-label">PARENT 父块流水线（回答单元，大粒度）</div>
+          <div class="pipeline-flow">
+            <div class="pf-node raw">解析全文</div>
+            <span class="pf-arr">→</span>
+            <div class="pf-node structure">STRUCTURE</div>
+            <span class="pf-arr">→</span>
+            <div class="pf-node recursive">RECURSIVE</div>
+            <span class="pf-arr">→</span>
+            <div class="pf-node out">父块列表</div>
+          </div>
+          <div class="pf-note">父块是"回答阶段需要的大语义单元"，参数更大：maxChars=2200，overlap=180。优先用 STRUCTURE 保留天然章节边界。</div>
+        </div>
+        <div class="pipeline-row">
+          <div class="pipeline-label">CHILD 子块流水线（召回单元，小粒度）</div>
+          <div class="pipeline-flow">
+            <div class="pf-node raw">单个父块</div>
+            <span class="pf-arr">→</span>
+            <div class="pf-node semantic">SEMANTIC</div>
+            <span class="pf-arr">→</span>
+            <div class="pf-node recursive">RECURSIVE</div>
+            <span class="pf-arr">→</span>
+            <div class="pf-node out">子块列表</div>
+          </div>
+          <div class="pf-note">子块是"向量检索的召回单元"，参数更小：maxChars=800，overlap=120。先用 SEMANTIC 优化主题边界，RECURSIVE 兜底控制长度。</div>
+        </div>
+      </div>
+
+      <p>同一个方法 <code>applyXxxChunking(currentChunks, pipelineType)</code> 在两条流水线里复用，靠 <code>pipelineType</code> 参数切换不同的长度阈值。下面四节逐个拆解。</p>
+    </section>
+
+    <!-- ======== STRUCTURE ======== -->
+    <section id="structure">
+      <h2>STRUCTURE 结构切块</h2>
+
+      <div class="strat-card structure">
+        <div class="card-head">
+          <span class="strat-tag structure">STRUCTURE</span>
+          <h3>按文档天然标题边界切</h3>
+          <span class="role-tag">角色 PRIMARY</span>
+        </div>
+        <p class="card-thesis">遍历每一行，用 <code>DocumentLineClassifier</code> 识别标题。遇到标题就把之前累积的内容"刷出"为一个块，并用一个标题栈维护当前所属的章节路径。块天然对齐章节，召回时能带上 <code>sectionPath</code>。</p>
+
+        <h4>方法入口（两个重载协作）</h4>
+<div class="code-block structure"><span class="cm">// ① 对每个候选块逐个调用字符串版切块</span>
+<span class="kw">private</span> List&lt;ChunkCandidate&gt; applyStructureChunking(List&lt;ChunkCandidate&gt; sourceList,
+                                                    DocumentStrategyPipelineTypeEnum pipelineType) {
+    List&lt;ChunkCandidate&gt; resultList = <span class="kw">new</span> ArrayList&lt;&gt;();
+    <span class="kw">for</span> (ChunkCandidate candidate : sourceList) {
+        <span class="kw">if</span> (candidate == <span class="kw">null</span> || StrUtil.isBlank(candidate.getText())) <span class="kw">continue</span>;
+        resultList.addAll(applyStructureChunking(
+            candidate.getText(), pipelineType,
+            candidate.getSectionPath(), candidate.getSourceType()));
+    }
+    <span class="kw">return</span> resultList;
+}
+
+<span class="cm">// ② 真正的切分逻辑：标题栈 + 累积缓冲区</span>
+<span class="kw">private</span> List&lt;ChunkCandidate&gt; applyStructureChunking(String parsedText, ..., String baseSectionPath, Integer sourceType) {
+    List&lt;ChunkCandidate&gt; candidateList = <span class="kw">new</span> ArrayList&lt;&gt;();
+    Deque&lt;String&gt; headingStack = <span class="kw">new</span> ArrayDeque&lt;&gt;();     <span class="cm">// 标题栈</span>
+    StringBuilder currentChunk = <span class="kw">new</span> StringBuilder();        <span class="cm">// 累积缓冲区</span>
+    String currentSectionPath = StrUtil.blankToDefault(baseSectionPath, <span class="st">""</span>);
+
+    <span class="kw">for</span> (String line : parsedText.split(<span class="st">"\n"</span>)) {
+        String trimmed = line.trim();
+        DocumentLineClassifier.LineClassification c = documentLineClassifier.classify(trimmed);
+
+        <span class="kw">if</span> (c.isHeading()) {
+            flushChunk(candidateList, currentSectionPath, sourceType, currentChunk); <span class="cm">// ① 先刷出旧块</span>
+            <span class="kw">while</span> (headingStack.size() &gt;= c.level())            <span class="cm">// ② 弹出同级及更深的标题</span>
+                headingStack.removeLast();
+            headingStack.addLast(c.title());                       <span class="cm">// ③ 压入当前标题</span>
+            currentSectionPath = composeSectionPath(baseSectionPath, String.join(<span class="st">" &gt; "</span>, headingStack));
+            currentChunk.append(trimmed).append(<span class="st">'\n'</span>);            <span class="cm">// ④ 标题本身作为新块的开头</span>
+            <span class="kw">continue</span>;
+        }
+        currentChunk.append(line).append(<span class="st">'\n'</span>);                <span class="cm">// 正文行：追加</span>
+    }
+    flushChunk(candidateList, currentSectionPath, sourceType, currentChunk);   <span class="cm">// ⑤ 收尾刷出最后一块</span>
+
+    <span class="kw">if</span> (candidateList.isEmpty()) {                            <span class="cm">// ⑥ 一个标题都没识别到</span>
+        <span class="kw">return</span> applyRecursiveChunking(List.of(<span class="kw">new</span> ChunkCandidate(baseSectionPath, parsedText, sourceType)), pipelineType);
+    }
+    <span class="kw">return</span> candidateList;
+}</div>
+
+        <h4>标题栈为什么用 Deque？</h4>
+        <p>标题栈维护"从根到当前标题"的完整路径。遇到一个 level=2 的标题时，要先把栈里所有 level≥2 的标题弹出（同级兄弟替换、更深层级归位），再压入新标题。这样 <code>String.join(" &gt; ", headingStack)</code> 永远是当前章节的正确路径，例如 <code>系统概述 &gt; 架构设计</code>。</p>
+
+        <div class="callout primary">
+          <strong>回退机制：</strong> 若整段文本一个标题都没识别到（<code>candidateList.isEmpty()</code>），结构切块毫无意义，直接降级为递归切块。这是"规则策略失败时要有兜底"的体现，贯穿四种方法。
+        </div>
+
+        <h4>DocumentLineClassifier 能识别哪些标题？</h4>
+        <p>结构切块的质量完全取决于行分类器。它按优先级链匹配（命中即返回）：</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>模式</th><th>示例</th><th>判定结果</th><th>level</th></tr></thead>
+            <tbody>
+              <tr><td>Markdown 标题</td><td><code># 标题</code> / <code>## 标题</code></td><td>HEADING</td><td>= # 的数量</td></tr>
+              <tr><td>附录</td><td><code>附录 A 说明</code></td><td>HEADING</td><td>1</td></tr>
+              <tr><td>中文章节</td><td><code>第三章 概述</code></td><td>HEADING</td><td>2</td></tr>
+              <tr><td>多级数字</td><td><code>1.2.3 标题</code></td><td>HEADING</td><td>= 点数（3）</td></tr>
+              <tr><td>单级数字</td><td><code>1. 内容</code></td><td>看内容像不像标题</td><td>1 / 列表项</td></tr>
+              <tr><td>中文大纲</td><td><code>一、内容</code></td><td>看内容像不像标题</td><td>1 / 列表项</td></tr>
+              <tr><td>无序列表</td><td><code>- 内容</code></td><td>LIST_ITEM</td><td>—</td></tr>
+              <tr><td>其他</td><td>普通正文</td><td>BODY</td><td>—</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>"看内容像不像标题"由 <code>looksLikeHeadingContent</code> 判定：长度 ≤ 24、不含 <code>，；。：</code> 等标点、不以句末标点结尾。这解决了 <code>1. 系统概述</code>（标题）和 <code>1. 打开配置文件</code>（列表项）的歧义。</p>
+      </div>
+
+      <div class="example">
+        <div class="example-head structure">示例 · STRUCTURE 切块全过程推演</div>
+        <div class="example-body">
+          <p><strong>输入文本：</strong></p>
+<div class="code-block structure"># 系统概述
+本系统是企业级 RAG 平台。
+## 架构设计
+采用微服务架构。
+## 功能模块
+支持文档管理与检索。</div>
+
+          <p><strong>逐行推演（headingStack 与 currentSectionPath 的变化）：</strong></p>
+          <ul class="trace">
+            <li><span class="step-no">①</span><code># 系统概述</code> → 标题 level=1。flush 空缓冲区（无操作）。栈弹出 size≥1 的（栈空），压入 <span class="var">"系统概述"</span>。<span class="var">currentSectionPath = "系统概述"</span>。标题行写入缓冲区。</li>
+            <li><span class="step-no">②</span><code>本系统是企业级 RAG 平台。</code> → BODY。追加到缓冲区。</li>
+            <li><span class="step-no">③</span><code>## 架构设计</code> → 标题 level=2。<span class="accent-text">flush 刷出块①</span>（sectionPath="系统概述"）。栈 size=1 &lt; 2 不弹出，压入 <span class="var">"架构设计"</span>。<span class="var">currentSectionPath = "系统概述 &gt; 架构设计"</span>。</li>
+            <li><span class="step-no">④</span><code>采用微服务架构。</code> → BODY。追加。</li>
+            <li><span class="step-no">⑤</span><code>## 功能模块</code> → 标题 level=2。<span class="accent-text">flush 刷出块②</span>（sectionPath="系统概述 &gt; 架构设计"）。栈 size=2 ≥ 2，弹出 <span class="var">"架构设计"</span>，压入 <span class="var">"功能模块"</span>。<span class="var">currentSectionPath = "系统概述 &gt; 功能模块"</span>。</li>
+            <li><span class="step-no">⑥</span><code>支持文档管理与检索。</code> → BODY。追加。</li>
+            <li><span class="step-no">⑦</span>循环结束。<span class="accent-text">flush 刷出块③</span>（sectionPath="系统概述 &gt; 功能模块"）。</li>
+          </ul>
+
+          <p><strong>输出 3 个块（每个都带上了章节路径）：</strong></p>
+<div class="code-block structure"><span class="out">块①  sectionPath = "系统概述"</span>
+     text = "# 系统概述\n本系统是企业级 RAG 平台。"
+
+<span class="out">块②  sectionPath = "系统概述 &gt; 架构设计"</span>
+     text = "## 架构设计\n采用微服务架构。"
+
+<span class="out">块③  sectionPath = "系统概述 &gt; 功能模块"</span>
+     text = "## 功能模块\n支持文档管理与检索。"</div>
+
+          <div class="callout primary">
+            <strong>价值所在：</strong> 切块边界天然对齐章节，且每个块都携带 <code>sectionPath</code>。检索命中后，回答阶段可以用这个路径还原"这段话属于哪个章节"，提升回答的结构性。
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======== RECURSIVE ======== -->
+    <section id="recursive">
+      <h2>RECURSIVE 递归切块</h2>
+
+      <div class="strat-card recursive">
+        <div class="card-head">
+          <span class="strat-tag recursive">RECURSIVE</span>
+          <h3>分隔符优先级链 + 累积合并</h3>
+          <span class="role-tag">角色 FALLBACK（兜底）</span>
+        </div>
+        <p class="card-thesis">这是最通用的切块方式，也是其他三种策略的最终兜底。核心思想：尽量在"自然边界"切（段落 &gt; 行 &gt; 句子），只有当所有自然分隔符都切不开时，才退化为字符级固定窗口。</p>
+
+        <h4>入口：对每个候选块调用 recursiveSplit</h4>
+<div class="code-block recursive"><span class="kw">private</span> List&lt;ChunkCandidate&gt; applyRecursiveChunking(List&lt;ChunkCandidate&gt; sourceList,
+                                                    DocumentStrategyPipelineTypeEnum pipelineType) {
+    List&lt;ChunkCandidate&gt; resultList = <span class="kw">new</span> ArrayList&lt;&gt;();
+    <span class="kw">int</span> maxChars = resolveRecursiveMaxChars(pipelineType);      <span class="cm">// PARENT=2200 / CHILD=800</span>
+    <span class="kw">int</span> overlapChars = resolveRecursiveOverlap(maxChars, pipelineType); <span class="cm">// PARENT=180 / CHILD=120</span>
+    <span class="kw">for</span> (ChunkCandidate candidate : sourceList) {
+        List&lt;String&gt; splitTextList = recursiveSplit(candidate.getText(), maxChars, overlapChars);
+        <span class="kw">for</span> (String splitText : splitTextList)
+            resultList.add(cloneChunkCandidate(candidate, splitText));  <span class="cm">// 克隆元数据，替换文本</span>
+    }
+    <span class="kw">return</span> resultList;
+}</div>
+
+        <h4>核心：recursiveSplit 的四级降级</h4>
+        <p>这是整个递归切块的灵魂——一个分层的降级链。文本超过 <code>maxChars</code> 时，依次尝试更细的分隔符：</p>
+<div class="code-block recursive"><span class="kw">private</span> List&lt;String&gt; recursiveSplit(String text, <span class="kw">int</span> maxChars, <span class="kw">int</span> overlapChars) {
+    String trimmed = text.trim();
+    <span class="kw">if</span> (trimmed.length() &lt;= maxChars) <span class="kw">return</span> List.of(trimmed);   <span class="cm">// 够短，直接返回</span>
+
+    <span class="cm">// 第 1 级：段落（双换行）</span>
+    List&lt;String&gt; paragraphList = splitByRegex(trimmed, <span class="st">"\\n\\s*\\n"</span>);
+    <span class="kw">if</span> (paragraphList.size() &gt; <span class="num">1</span>) <span class="kw">return</span> mergeAndSplit(paragraphList, maxChars, overlapChars);
+
+    <span class="cm">// 第 2 级：行（单换行）</span>
+    List&lt;String&gt; lineList = splitByRegex(trimmed, <span class="st">"\\n"</span>);
+    <span class="kw">if</span> (lineList.size() &gt; <span class="num">1</span>) <span class="kw">return</span> mergeAndSplit(lineList, maxChars, overlapChars);
+
+    <span class="cm">// 第 3 级：句子（。！？；. 等）</span>
+    List&lt;String&gt; sentenceList = splitSentences(trimmed);
+    <span class="kw">if</span> (sentenceList.size() &gt; <span class="num">1</span>) <span class="kw">return</span> mergeAndSplit(sentenceList, maxChars, overlapChars);
+
+    <span class="cm">// 第 4 级：字符级固定窗口（带 overlap，最后手段）</span>
+    List&lt;String&gt; fixedWindowList = <span class="kw">new</span> ArrayList&lt;&gt;();
+    <span class="kw">int</span> start = <span class="num">0</span>, step = Math.max(<span class="num">1</span>, maxChars - overlapChars);
+    <span class="kw">while</span> (start &lt; trimmed.length()) {
+        <span class="kw">int</span> end = Math.min(trimmed.length(), start + maxChars);
+        fixedWindowList.add(trimmed.substring(start, end).trim());
+        <span class="kw">if</span> (end &gt;= trimmed.length()) <span class="kw">break</span>;
+        start += step;
+    }
+    <span class="kw">return</span> fixedWindowList;
+}</div>
+
+        <div class="callout">
+          <strong>为什么要降级？</strong> 同一个分隔符不可能对所有文本都有效——一段没有换行符的长文本，第 1、2 级都切不开，必须退到句子级；连句号都没有的超长无标点串，才用字符窗口硬切。降级保证了"任何输入都能被切到 maxChars 以内"。
+        </div>
+
+        <h4>mergeAndSplit：先合并再补重叠</h4>
+        <p>切出小段后不能直接用——一段 50 字的段落太小。<code>mergeAndSplit</code> 把相邻小段重新拼回接近 <code>maxChars</code> 的块：累积小段，一旦超过阈值就切出一个块。若某段本身就超长，递归调用 <code>recursiveSplit</code> 继续拆。最后 <code>applyOverlap</code> 给相邻块补上重叠前缀，避免切块边界割裂语义。</p>
+<div class="code-block recursive"><span class="cm">// applyOverlap：每个块（除第一个）前补上一块的尾部，长度 ≤ overlapChars</span>
+<span class="kw">private</span> String buildOverlapPrefix(String previous, String current, <span class="kw">int</span> maxChars, <span class="kw">int</span> overlapChars) {
+    <span class="kw">int</span> allowedChars = Math.min(overlapChars, Math.max(<span class="num">0</span>, maxChars - current.length() - <span class="num">1</span>));
+    <span class="kw">if</span> (allowedChars &lt;= <span class="num">0</span>) <span class="kw">return</span> <span class="st">""</span>;
+    <span class="kw">return</span> previous.length() &lt;= allowedChars
+        ? previous
+        : previous.substring(previous.length() - allowedChars).trim();  <span class="cm">// 取上一块尾部</span>
+}</div>
+
+        <h4>applyOverlap 如何"补"出重叠</h4>
+        <p>这条路径的重叠<strong>不是切的时候产生,而是切完之后"补"出来的</strong>:先累积出本不重叠的块,再回头给每块开头塞上一块的尾部。用极简例子看清它和滑动窗口的区别:</p>
+<div class="code-block recursive"><span class="cm">设 maxChars=10, overlapChars=4</span>
+
+<span class="cm">① mergeAndSplit 先累积出"不重叠"的两块(各管各的字符,此时无重叠):</span>
+   块① = <span class="st">"0123456789"</span>   <span class="cm">(10字,顶满)</span>
+   块② = <span class="st">"abcdef"</span>        <span class="cm">(6字)</span>
+
+<span class="cm">② applyOverlap 回头给块②开头补块①的尾部:</span>
+   能补几字? allowedChars = min(overlapChars, maxChars - 块②长 - 1)
+                        = min(4, 10 - 6 - 1) = 3   <span class="cm">← 留1字给中间的\n,被"不能超长"压成3</span>
+   取块①尾部 3 字 = <span class="st">"789"</span>
+   块② = <span class="st">"789"</span> + <span class="st">"\n"</span> + <span class="st">"abcdef"</span> = <span class="st">"789\nabcdef"</span>
+
+<span class="cm">③ 重叠就在"补"这一步冒出来:</span>
+   块①  0 1 2 3 4 5 6 [<span class="hl">7 8 9</span>]
+   块②        [<span class="hl">7 8 9</span>] \n a b c d e f
+                 <span class="hl">↑↑↑</span>
+          "789" 既在块①尾部、又在块②头部 = 重叠区(3字)</div>
+
+        <div class="callout">
+          <strong>对比第 4 级滑动窗口:</strong> 那条是"切的时候窗口搭着"(步长 &lt; 窗口),重叠量恒定 = overlapChars;这条是"切完再补尾部",重叠量被 <code>allowedChars</code> 动态压小——当前块越满能借的越少,但绝不超 maxChars。两套殊途同归,都靠 overlapChars 控重叠量。
+        </div>
+
+        <h4>参数随流水线变化</h4>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>参数</th><th>PARENT 父块</th><th>CHILD 子块</th><th>含义</th></tr></thead>
+            <tbody>
+              <tr><td><code>recursiveMaxChars</code></td><td>2200（常量）</td><td>800（配置）</td><td>单块最大字符数</td></tr>
+              <tr><td><code>recursiveOverlapChars</code></td><td>180（常量）</td><td>120（配置）</td><td>相邻块重叠字符数</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>父块要大（承载完整答案），子块要小（精准召回）。同一套算法，靠参数差异化复用。</p>
+      </div>
+
+      <div class="example">
+        <div class="example-head recursive">示例 · RECURSIVE 四级降级演示</div>
+        <div class="example-body">
+          <p><strong>场景 A：文本含段落分隔（命中第 1 级）</strong></p>
+          <p>假设 <code>maxChars=20, overlapChars=5</code>（为演示缩小参数）：</p>
+<div class="code-block recursive">输入（含空行，可按段落切）：
+"第一段内容较长需要切分。第二段内容继续。
+
+第三段单独一段。"
+
+<span class="cm">→ splitByRegex("\\n\\s*\\n") 得 2 段，进入 mergeAndSplit</span>
+<span class="cm">→ 累积第1段(20字) 到阈值，切出块①</span>
+<span class="cm">→ 累积第2段(6字)，循环结束切出块②</span>
+<span class="cm">→ applyOverlap：块②前补块①尾部5字</span>
+
+输出：
+<span class="out">块① = "第一段内容较长需要切分。第二段内容继续。"</span>
+<span class="out">块② = "内容继续。\n第三段单独一段。"   ← 前5字"内容继续。"是块①的尾部</span></div>
+
+          <p><strong>场景 B：超长无标点串（一路降级到第 4 级）</strong></p>
+<div class="code-block recursive">输入（无换行、无句号的长串，假设 maxChars=10）：
+"ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+<span class="cm">→ 第1级 \\n\\s*\\n：无匹配，size=1，降级</span>
+<span class="cm">→ 第2级 \\n：无匹配，size=1，降级</span>
+<span class="cm">→ 第3级 句子：无标点，size=1，降级</span>
+<span class="cm">→ 第4级 固定窗口：step=10-0=10</span>
+<span class="cm">   start=0  → "ABCDEFGHIJ"</span>
+<span class="cm">   start=10 → "KLMNOPQRST"</span>
+<span class="cm">   start=20 → "UVWXYZ"</span>
+
+输出 3 个字符窗口块（最后手段，会割裂单词，所以放最低优先级）</div>
+          <div class="callout warn">
+            <strong>真实参数下：</strong> CHILD 流水线 maxChars=800，绝大多数文档在第 1~3 级就能切完，第 4 级固定窗口极少触发，主要应对异常的无标点超长文本。
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======== SEMANTIC ======== -->
+    <section id="semantic">
+      <h2>SEMANTIC 语义切块</h2>
+
+      <div class="strat-card semantic">
+        <div class="card-head">
+          <span class="strat-tag semantic">SEMANTIC</span>
+          <h3>句子级 Jaccard 相似度切分</h3>
+          <span class="role-tag">角色 OPTIMIZE（优化边界）</span>
+        </div>
+        <p class="card-thesis">递归切块按"长度"切，可能把同一主题的句子切到两个块。语义切块按"主题"切：逐句累积，当新句子与当前块的主题相似度低于阈值时，认为发生了主题跳变，在此切分。</p>
+
+        <h4>入口：短块直接放过，长块才语义切</h4>
+<div class="code-block semantic"><span class="kw">private</span> List&lt;ChunkCandidate&gt; applySemanticChunking(List&lt;ChunkCandidate&gt; sourceList,
+                                                   DocumentStrategyPipelineTypeEnum pipelineType) {
+    List&lt;ChunkCandidate&gt; resultList = <span class="kw">new</span> ArrayList&lt;&gt;();
+    <span class="kw">int</span> semanticMinChars = resolveSemanticMinChars(pipelineType); <span class="cm">// PARENT≥480 / CHILD=240</span>
+    <span class="kw">for</span> (ChunkCandidate candidate : sourceList) {
+        <span class="kw">if</span> (StrUtil.isBlank(candidate.getText())
+            || candidate.getText().length() &lt;= semanticMinChars) {
+            resultList.add(candidate);   <span class="cm">// 太短不值得切，原样保留</span>
+            <span class="kw">continue</span>;
+        }
+        resultList.addAll(semanticSplit(candidate, pipelineType));
+    }
+    <span class="kw">return</span> resultList;
+}</div>
+
+        <h4>核心：semanticSplit 的累积与相似度判定</h4>
+<div class="code-block semantic"><span class="kw">private</span> List&lt;ChunkCandidate&gt; semanticSplit(ChunkCandidate candidate, DocumentStrategyPipelineTypeEnum pipelineType) {
+    List&lt;String&gt; sentenceList = splitSentences(candidate.getText());  <span class="cm">// 按 。！？；. 切句</span>
+    <span class="kw">if</span> (sentenceList.size() &lt;= <span class="num">1</span>) <span class="kw">return</span> List.of(candidate);
+
+    StringBuilder currentChunk = <span class="kw">new</span> StringBuilder();
+    Set&lt;String&gt; currentTokenSet = <span class="kw">new</span> LinkedHashSet&lt;&gt;();   <span class="cm">// 当前块的主题词集合</span>
+    <span class="kw">int</span> semanticMinChars = resolveSemanticMinChars(pipelineType);
+    <span class="kw">int</span> semanticMaxChars = resolveSemanticMaxChars(pipelineType);  <span class="cm">// PARENT≥1600 / CHILD=700</span>
+
+    <span class="kw">for</span> (String sentence : sentenceList) {
+        Set&lt;String&gt; sentenceTokenSet = extractTokens(sentence);
+
+        <span class="kw">boolean</span> exceedMaxChars = currentChunk.length() + sentence.length() &gt; semanticMaxChars;
+        <span class="kw">double</span> similarity = currentTokenSet.isEmpty() ? <span class="num">1D</span> : jaccard(currentTokenSet, sentenceTokenSet);
+        <span class="kw">boolean</span> semanticBreak = currentChunk.length() &gt;= semanticMinChars
+            &amp;&amp; similarity &lt; properties.getChunk().getSemanticSimilarityThreshold();  <span class="cm">// 默认 0.18</span>
+
+        <span class="kw">if</span> (currentChunk.length() &gt; <span class="num">0</span> &amp;&amp; (exceedMaxChars || semanticBreak)) {
+            resultList.add(cloneChunkCandidate(candidate, currentChunk.toString().trim())); <span class="cm">// 切出当前块</span>
+            currentChunk.setLength(<span class="num">0</span>);
+            currentTokenSet.clear();
+        }
+        currentChunk.append(sentence);
+        currentTokenSet.addAll(sentenceTokenSet);   <span class="cm">// 累积主题词</span>
+    }
+    <span class="kw">if</span> (currentChunk.length() &gt; <span class="num">0</span>) resultList.add(...);  <span class="cm">// 收尾</span>
+    <span class="kw">return</span> resultList;
+}</div>
+
+        <h4>两个触发切分的条件</h4>
+        <div class="two-col">
+          <div class="col-cell b3">
+            <strong>① exceedMaxChars 长度兜底</strong>
+            加入这句会超过 <code>semanticMaxChars</code>。无论主题多相关，超长必须切，防止块过大。
+          </div>
+          <div class="col-cell b3">
+            <strong>② semanticBreak 主题跳变</strong>
+            当前块已达 <code>semanticMinChars</code>，且新句子与当前块主题相似度 &lt; 0.18。说明话题转换，在此切开能让每个块主题更纯粹。
+          </div>
+        </div>
+        <p>注意 <code>semanticBreak</code> 有个前置条件 <code>currentChunk.length() &gt;= semanticMinChars</code>：块太短时即便主题跳变也不切，避免产生碎块。这是"主题纯度"和"块长度下限"的权衡。</p>
+
+        <h4>主题词怎么提取？Jaccard 怎么算？</h4>
+        <p><code>extractTokens</code> 把句子拆成主题词集合：<strong>英文单词</strong>（正则 <code>[A-Za-z0-9]{2,}</code>，2 字符以上，小写化）+ <strong>中文单字</strong>（逐字符，<code>一-龥</code>）。然后 <code>jaccard</code> 用两个集合的交集/并集算相似度：</p>
+<div class="code-block semantic"><span class="kw">private</span> <span class="kw">double</span> jaccard(Set&lt;String&gt; left, Set&lt;String&gt; right) {
+    Set&lt;String&gt; union = <span class="kw">new</span> LinkedHashSet&lt;&gt;(left);  union.addAll(right);
+    Set&lt;String&gt; intersection = <span class="kw">new</span> LinkedHashSet&lt;&gt;(left);  intersection.retainAll(right);
+    <span class="kw">return</span> union.isEmpty() ? <span class="num">0D</span> : (<span class="kw">double</span>) intersection.size() / (<span class="kw">double</span>) union.size();
+}
+<span class="cm">// jaccard = |交集| / |并集|，值域 [0,1]，越大越相似</span></div>
+
+        <div class="callout accent">
+          <strong>为什么不用向量算相似度？</strong> 向量相似度更准但每句都要 embedding，成本高。这里用 Jaccard 词集合重叠做"廉价的主题近似"——不需要模型、毫秒级完成。0.18 的阈值偏宽松，只有主题明显跳变才切，避免过度切分。
+        </div>
+      </div>
+
+      <div class="example">
+        <div class="example-head semantic">示例 · SEMANTIC 主题跳变切分</div>
+        <div class="example-body">
+          <p>假设 <code>semanticMinChars=10, semanticMaxChars=30, threshold=0.18</code>（为演示缩小参数）。输入三个句子：</p>
+<div class="code-block semantic">句1 "系统采用微服务架构"
+句2 "微服务之间通过 HTTP 通信"
+句3 "系统还支持文档上传功能"</div>
+
+          <p><strong>extractTokens 提取主题词：</strong></p>
+          <div class="token-vis">
+            <span class="tok-label">句1 tokens：</span>
+            <span class="tok">系</span><span class="tok">统</span><span class="tok">采</span><span class="tok">用</span><span class="tok">微</span><span class="tok">服</span><span class="tok">务</span><span class="tok">架</span><span class="tok">构</span>
+            <br><span class="tok-label">句2 tokens：</span>
+            <span class="tok">微</span><span class="tok">服</span><span class="tok">务</span><span class="tok">之</span><span class="tok">间</span><span class="tok">通</span><span class="tok">过</span><span class="tok">信</span><span class="tok">http</span>
+            <br><span class="tok-label">句3 tokens：</span>
+            <span class="tok">系</span><span class="tok">统</span><span class="tok">还</span><span class="tok">支</span><span class="tok">持</span><span class="tok">文</span><span class="tok">档</span><span class="tok">上</span><span class="tok">传</span><span class="tok">功</span><span class="tok">能</span>
+          </div>
+
+          <p><strong>句1集 vs 句2集 — 交集、并集到底长什么样：</strong></p>
+          <div class="set-legend">
+            颜色含义：<span class="tok inter">绿</span>＝两边都有（计入交集）
+            <span class="tok only-a">蓝</span>＝仅句1有
+            <span class="tok only-b">灰</span>＝仅句2有
+          </div>
+          <div class="set-op">
+            <div class="op-line"><span class="op-label">句1集（9个）：</span>
+              <span class="tok only-a">系</span><span class="tok only-a">统</span><span class="tok only-a">采</span><span class="tok only-a">用</span><span class="tok inter">微</span><span class="tok inter">服</span><span class="tok inter">务</span><span class="tok only-a">架</span><span class="tok only-a">构</span>
+            </div>
+            <div class="op-line"><span class="op-label">句2集（9个）：</span>
+              <span class="tok inter">微</span><span class="tok inter">服</span><span class="tok inter">务</span><span class="tok only-b">之</span><span class="tok only-b">间</span><span class="tok only-b">通</span><span class="tok only-b">过</span><span class="tok only-b">信</span><span class="tok only-b">http</span>
+            </div>
+            <div class="op-formula">
+              <div class="op-line"><span class="op-sym">∩ 交集</span>＝两边都出现的 token ＝ <span class="tok inter">微</span><span class="tok inter">服</span><span class="tok inter">务</span>　<span class="op-result">＝ 3 个</span></div>
+              <div class="op-line"><span class="op-sym">∪ 并集</span>＝两边合起来去重 ＝ <span class="tok only-a">系</span><span class="tok only-a">统</span><span class="tok only-a">采</span><span class="tok only-a">用</span><span class="tok inter">微</span><span class="tok inter">服</span><span class="tok inter">务</span><span class="tok only-a">架</span><span class="tok only-a">构</span><span class="tok only-b">之</span><span class="tok only-b">间</span><span class="tok only-b">通</span><span class="tok only-b">过</span><span class="tok only-b">信</span><span class="tok only-b">http</span>　<span class="op-result">＝ 15 个</span></div>
+              <div class="op-line"><span class="op-sym">jaccard</span>＝ |交集| / |并集| ＝ 3 / 15 ＝ <span class="op-result">0.20 ≥ 0.18</span> → 主题相近，不切，句2并入块①</div>
+            </div>
+          </div>
+          <p style="font-size:14px;color:#5a6678;">绿色"微服务"是两句话共同的主题词，所以交集非空、相似度达标——这正是"语义相近的句子会被塞进同一块"的体现。蓝色6个是句1独有，灰色6个是句2独有，它们共同构成并集的另外12个。</p>
+
+          <p><strong>逐句累积推演：</strong></p>
+          <ul class="trace">
+            <li><span class="step-no">句1</span>缓冲区空，相似度=1.0（空集约定）。不切。缓冲区=<span class="var">"系统采用微服务架构"</span>(9字)，tokenSet={系,统,采,用,微,服,务,架,构}。</li>
+            <li><span class="step-no">句2</span>exceedMaxChars: 9+15=24 &lt; 30，否。jaccard(句1集, 句2集)=<span class="accent-text">交集{微,服,务}=3 / 并集15 = 0.20</span>（≥ 阈值 0.18）。semanticBreak 需"块≥minChars 且 相似度&lt;阈值"双条件同时成立，此处缓冲区 9 字 &lt; minChars(10)，否。两个条件都不满足，不切。缓冲区追加句2，tokenSet 扩充。</li>
+            <li><span class="step-no">句3</span>exceedMaxChars: 24+11=35 &gt; 30，<span class="accent-text">是 → 触发切分</span>。按"先刷出 → 清空 → 追加"顺序执行：<strong>①</strong> 刷出缓冲区"原有"内容（句1+句2）= 块①="系统采用微服务架构微服务之间通过HTTP通信"；<strong>②</strong> 清空缓冲区；<strong>③</strong> 句3追加进空缓冲区，成为块②的开头。<span style="color:#6b7588;font-size:13px;">句3本身没被切掉，而是落到下一块当开头——因为"加进来会超长"才触发切分，把它塞进当前块会让块超 maxChars。</span></li>
+            <li><span class="step-no">收尾</span>缓冲区非空，刷出块②="系统还支持文档上传功能"。</li>
+          </ul>
+
+          <p><strong>输出 2 个块：</strong></p>
+<div class="code-block semantic"><span class="out">块① = "系统采用微服务架构微服务之间通过 HTTP 通信"   ← 主题：微服务架构</span>
+<span class="out">块② = "系统还支持文档上传功能"                       ← 主题：文档功能（因长度兜底切开）</span></div>
+
+          <div class="callout accent">
+            <strong>若调大 maxChars</strong>，句3 不会触发长度切分，此时会看 jaccard(块①集, 句3集)：块①集(15) ∪ 句3集(11) − 交集{系,统}(2)，故交集=2、并集=24，相似度=2/24≈0.08 &lt; 0.18 → 触发 semanticBreak，按"主题跳变"切开。两种触发条件在不同参数下接力工作。
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======== LLM ======== -->
+    <section id="llm">
+      <h2>LLM 智能切块</h2>
+
+      <div class="strat-card llm">
+        <div class="card-head">
+          <span class="strat-tag llm">LLM</span>
+          <h3>大模型语义切块（带三级回退）</h3>
+          <span class="role-tag">角色 ENHANCE（增强）</span>
+        </div>
+        <p class="card-thesis">前三种都是规则驱动，遇到低质量、结构混乱的文本（OCR 噪声、乱码段落）容易切得不好。LLM 切块把文本交给大模型，让它按真实语义理解来切。代价是延迟和成本，所以设计成"可选增强 + 多级回退"。</p>
+
+        <h4>入口：未启用直接退化，超长先预切</h4>
+<div class="code-block llm"><span class="kw">private</span> List&lt;ChunkCandidate&gt; applyLlmChunking(List&lt;ChunkCandidate&gt; sourceList,
+                                              DocumentStrategyPipelineTypeEnum pipelineType) {
+    ChatModel chatModel = chatModelProvider.getIfAvailable();
+    <span class="cm">// 回退 1：未启用 LLM 或模型不可用 → 退化为语义切块</span>
+    <span class="kw">if</span> (!Boolean.TRUE.equals(properties.getChunk().getLlmEnabled()) || chatModel == <span class="kw">null</span>) {
+        <span class="kw">return</span> applySemanticChunking(sourceList, pipelineType);
+    }
+
+    List&lt;ChunkCandidate&gt; resultList = <span class="kw">new</span> ArrayList&lt;&gt;();
+    <span class="kw">for</span> (ChunkCandidate candidate : sourceList) {
+        <span class="kw">if</span> (StrUtil.isBlank(candidate.getText())) <span class="kw">continue</span>;
+
+        <span class="kw">int</span> llmMaxChars = resolveLlmMaxChars(pipelineType);  <span class="cm">// 默认 3500</span>
+        <span class="cm">// 超长文本先递归预切（overlap=0），控制单次 LLM 输入 token</span>
+        List&lt;String&gt; sourceTextList = candidate.getText().length() &gt; llmMaxChars
+            ? recursiveSplit(candidate.getText(), llmMaxChars, <span class="num">0</span>)
+            : List.of(candidate.getText());
+
+        <span class="kw">for</span> (String sourceText : sourceTextList) {
+            List&lt;String&gt; llmChunkList = llmSplit(chatModel, sourceText);
+            <span class="cm">// 回退 2：LLM 返回空（调用失败）→ 该段退化为语义切块</span>
+            <span class="kw">if</span> (llmChunkList.isEmpty()) {
+                resultList.addAll(semanticSplit(cloneChunkCandidate(candidate, sourceText), pipelineType));
+                <span class="kw">continue</span>;
+            }
+            <span class="kw">for</span> (String llmChunk : llmChunkList)
+                resultList.add(cloneChunkCandidate(candidate, llmChunk));
+        }
+    }
+    <span class="kw">return</span> resultList;
+}</div>
+
+        <div class="callout llm">
+          <strong>三级回退设计：</strong> ① 配置未启用 / 模型不可用 → 整体退化为 SEMANTIC；② 超长文本 → 先 RECURSIVE 预切再喂 LLM（控制 token 成本）；③ 单次 LLM 调用失败 → 该段退化为 SEMANTIC。任何一层故障都不会中断流程，最差情况降级到纯规则。
+        </div>
+
+        <h4>llmSplit：构造 prompt → 调用 → 解析 JSON 数组</h4>
+<div class="code-block llm"><span class="kw">private</span> List&lt;String&gt; llmSplit(ChatModel chatModel, String sourceText) {
+    String prompt = promptTemplateService.render(PromptTemplateNames.DOCUMENT_LLM_SPLIT,
+        Map.of(<span class="st">"sourceText"</span>, StrUtil.blankToDefault(sourceText, <span class="st">""</span>)));
+
+    <span class="kw">try</span> {
+        String content = ChatClient.builder(chatModel).build()
+            .prompt().user(prompt).call().content();   <span class="cm">// 同步调用大模型</span>
+
+        <span class="kw">if</span> (StrUtil.isBlank(content)) <span class="kw">return</span> List.of();
+        String jsonArray = extractJsonArray(content);   <span class="cm">// 从返回里抠出 [ ... ]</span>
+        <span class="kw">if</span> (StrUtil.isBlank(jsonArray)) <span class="kw">return</span> List.of();
+
+        List&lt;String&gt; resultList = objectMapper.readValue(jsonArray, <span class="kw">new</span> TypeReference&lt;List&lt;String&gt;&gt;() {});
+        <span class="kw">return</span> resultList.stream().filter(StrUtil::isNotBlank).map(String::trim).toList();
+    } <span class="kw">catch</span> (Exception exception) {
+        log.warn(<span class="st">"大模型智能切块失败，回退到语义切块"</span>, exception);
+        <span class="kw">return</span> List.of();   <span class="cm">// 异常静默回退，由调用方走 semanticSplit</span>
+    }
+}
+
+<span class="cm">// extractJsonArray：容错解析，取第一个 [ 到最后一个 ] 之间的内容</span>
+<span class="kw">private</span> String extractJsonArray(String content) {
+    <span class="kw">int</span> start = content.indexOf(<span class="st">'['</span>), end = content.lastIndexOf(<span class="st">']'</span>);
+    <span class="kw">return</span> (start &lt; <span class="num">0</span> || end &lt;= start) ? <span class="kw">null</span> : content.substring(start, end + <span class="num">1</span>);
+}</div>
+
+        <div class="callout warn">
+          <strong>容错要点：</strong> 大模型返回常带前后缀文字（如"好的，结果如下："），<code>extractJsonArray</code> 不做严格 JSON 解析，而是取首个 <code>[</code> 到末个 <code>]</code> 的子串再交给 Jackson。任何异常（超时、JSON 格式错、模型拒绝）都被 catch 并返回空列表，触发上层回退。
+        </div>
+
+        <div class="callout llm">
+          <strong>默认关闭：</strong> <code>llmEnabled</code> 默认 <code>false</code>，<code>llmMaxChars</code> 默认 3500。仅在文档质量低（<code>ContentQualityLevel=LOW</code>）且配置开启时，<code>recommendStrategy</code> 才会把 LLM 加入子块流水线。这是成本与质量的显式权衡。
+        </div>
+      </div>
+
+      <div class="example">
+        <div class="example-head llm">示例 · LLM 切块调用与解析</div>
+        <div class="example-body">
+          <p><strong>输入 sourceText（一段混合内容）：</strong></p>
+<div class="code-block llm">系统采用微服务架构。微服务之间通过 HTTP 通信。系统还支持文档上传、检索和向量化。</div>
+
+          <p><strong>渲染后的 prompt（示意）：</strong></p>
+<div class="code-block llm">请将以下文本按语义完整切分为若干片段，返回 JSON 字符串数组：
+"系统采用微服务架构。微服务之间通过 HTTP 通信。系统还支持文档上传、检索和向量化。"</div>
+
+          <p><strong>大模型返回（可能带前后缀）：</strong></p>
+<div class="code-block llm">好的，切分结果如下：
+[<span class="st">"系统采用微服务架构。微服务之间通过 HTTP 通信。"</span>,
+ <span class="st">"系统还支持文档上传、检索和向量化。"</span>]
+希望对你有帮助。</div>
+
+          <p><strong>处理链路：</strong></p>
+          <ul class="trace">
+            <li><span class="step-no">①</span><code>extractJsonArray</code> 抠出首个 <code>[</code> 到末个 <code>]</code>：去掉前后缀文字。</li>
+            <li><span class="step-no">②</span><code>objectMapper.readValue</code> 反序列化为 <code>List&lt;String&gt;</code>。</li>
+            <li><span class="step-no">③</span>过滤空白、trim，克隆元数据生成 2 个 ChunkCandidate。</li>
+          </ul>
+
+          <p><strong>输出 2 个块：</strong></p>
+<div class="code-block llm"><span class="out">块① = "系统采用微服务架构。微服务之间通过 HTTP 通信。"</span>
+<span class="out">块② = "系统还支持文档上传、检索和向量化。"</span></div>
+
+          <p><strong>失败回退场景：</strong> 若模型超时返回空，<code>llmSplit</code> 返回 <code>List.of()</code>，<code>applyLlmChunking</code> 检测到空列表，对该段调用 <code>semanticSplit</code> 走语义切块——用户无感知，切块继续进行。</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======== 对比与推荐 ======== -->
+    <section id="compare">
+      <h2>对比与策略推荐</h2>
+
+      <h3>四种策略一览</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>策略</th><th>切分依据</th><th>角色</th><th>成本</th><th>典型场景</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><span class="strat-tag structure">STRUCTURE</span></td>
+              <td>文档标题边界</td>
+              <td>PRIMARY</td>
+              <td>极低（正则）</td>
+              <td>有清晰章节的 PDF/DOCX/MD/HTML</td>
+            </tr>
+            <tr>
+              <td><span class="strat-tag recursive">RECURSIVE</span></td>
+              <td>分隔符优先级 + 长度</td>
+              <td>FALLBACK</td>
+              <td>极低（正则）</td>
+              <td>通用兜底，超长文本长度控制</td>
+            </tr>
+            <tr>
+              <td><span class="strat-tag semantic">SEMANTIC</span></td>
+              <td>句子 Jaccard 主题相似度</td>
+              <td>OPTIMIZE</td>
+              <td>低（词集合运算）</td>
+              <td>主题边界明确的较长文本</td>
+            </tr>
+            <tr>
+              <td><span class="strat-tag llm">LLM</span></td>
+              <td>大模型语义理解</td>
+              <td>ENHANCE</td>
+              <td>高（模型调用）</td>
+              <td>低质量/结构混乱文本，默认关闭</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>recommendStrategy 如何自动选策略</h3>
+      <p><code>recommendStrategy</code> 根据文档分析结果（<code>DocumentAnalysisResult</code>）的几个信号决定流水线组合：</p>
+      <div class="two-col">
+        <div class="col-cell b1">
+          <strong>父块流水线（大粒度）</strong>
+          有结构信号（PDF/DOCX/MD/HTML + 结构等级≥MEDIUM 或标题数≥2）→ <span class="strat-tag structure">STRUCTURE</span>；否则 → <span class="strat-tag recursive">RECURSIVE</span>。
+        </div>
+        <div class="col-cell b2">
+          <strong>子块流水线（小粒度）</strong>
+          低质量且开启推荐 → <span class="strat-tag llm">LLM</span>；否则主题明确 → <span class="strat-tag semantic">SEMANTIC</span>；最后追加 <span class="strat-tag recursive">RECURSIVE</span> 兜底。
+        </div>
+      </div>
+
+      <h3>回退关系总览</h3>
+      <p>四种策略不是孤立的，而是层层兜底的依赖网：</p>
+<div class="code-block structure">STRUCTURE  识别不到标题  ──→  RECURSIVE
+LLM        未启用/模型不可用 ──→  SEMANTIC
+LLM        单次调用失败    ──→  SEMANTIC（semanticSplit）
+SEMANTIC   文本太短/单句   ──→  原样保留（不切）
+RECURSIVE  无分隔符的超长串 ──→  字符级固定窗口</div>
+
+      <div class="callout primary">
+        <strong>设计哲学：</strong> 越智能的策略（LLM &gt; SEMANTIC &gt; RECURSIVE &gt; STRUCTURE）越贵、越不稳定，所以都设计了向更廉价、更确定策略的回退路径。最终保证：<strong>任何输入、任何故障下，切块都能产出合理结果</strong>——这是 RAG 索引构建阶段必须的鲁棒性。
+      </div>
+
+      <h3>源码位置</h3>
+      <p>全部四种方法实现于 <code>super-agent-business/super-agent-business-chat/src/main/java/org/javaup/ai/manage/service/impl/DocumentStrategyServiceImpl.java</code>：</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>方法</th><th>行号区间</th><th>职责</th></tr></thead>
+          <tbody>
+            <tr><td><code>executePipeline</code></td><td>412–430</td><td>调度入口，switch 分发四种策略</td></tr>
+            <tr><td><code>applyStructureChunking</code></td><td>489–543</td><td>结构切块（标题栈）</td></tr>
+            <tr><td><code>applyRecursiveChunking</code></td><td>549–562</td><td>递归切块入口</td></tr>
+            <tr><td><code>recursiveSplit</code></td><td>664–703</td><td>四级降级切分核心</td></tr>
+            <tr><td><code>applySemanticChunking</code></td><td>568–583</td><td>语义切块入口</td></tr>
+            <tr><td><code>semanticSplit</code></td><td>623–662</td><td>Jaccard 相似度切分核心</td></tr>
+            <tr><td><code>applyLlmChunking</code></td><td>589–621</td><td>LLM 切块（三级回退）</td></tr>
+            <tr><td><code>llmSplit</code></td><td>867–897</td><td>大模型调用与 JSON 解析</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="container">
+    文档切块策略详解 · 基于 DocumentStrategyServiceImpl 源码 · super-agent 项目文档系列
+  </div>
+</footer>
+
+</body>
+</html>

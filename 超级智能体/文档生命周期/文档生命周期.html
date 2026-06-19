@@ -1,0 +1,2212 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>文档生命周期</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --primary: #1E3A5F;
+    --on-primary: #FFFFFF;
+    --secondary: #2563EB;
+    --accent: #059669;
+    --destructive: #DC2626;
+    --background: #EAECEE;
+    --surface: #F2F4F6;
+    --foreground: #0F172A;
+    --muted: #E3E5E8;
+    --border: #D5D8DE;
+    --ring: #1E3A5F;
+    --font-sans: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-mono: 'JetBrains Mono', 'SF Mono', monospace;
+    --radius: 0;
+    --space-xs: 4px;
+    --space-sm: 8px;
+    --space-md: 16px;
+    --space-lg: 24px;
+    --space-xl: 32px;
+    --space-2xl: 48px;
+    --space-3xl: 64px;
+    --max-width: 960px;
+    --line-length: 680px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: var(--font-sans);
+    background: var(--background);
+    color: var(--foreground);
+    line-height: 1.8;
+    font-size: 18px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3, h4 { font-weight: 600; line-height: 1.3; color: var(--foreground); }
+  h1 { font-size: 34px; letter-spacing: -0.3px; }
+  h2 { font-size: 24px; margin-top: var(--space-2xl); margin-bottom: var(--space-md); }
+  h3 { font-size: 19px; margin-top: var(--space-xl); margin-bottom: var(--space-sm); }
+  h4 { font-size: 17px; margin-top: var(--space-lg); }
+  p, li { font-size: 17px; color: var(--foreground); max-width: var(--line-length); }
+  p { margin-bottom: var(--space-md); }
+  a { color: var(--secondary); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code {
+    font-family: var(--font-mono);
+    font-size: 14px;
+    background: var(--muted);
+    padding: 2px 6px;
+    border-radius: 2px;
+    color: var(--primary);
+  }
+  strong { font-weight: 600; color: var(--primary); }
+
+  .container { max-width: var(--max-width); margin: 0 auto; padding: 0 var(--space-lg); }
+
+  /* === Header === */
+  .site-header {
+    background: var(--primary);
+    color: var(--on-primary);
+    padding: var(--space-3xl) 0 var(--space-2xl);
+  }
+  .site-header h1 { color: var(--on-primary); font-size: 36px; letter-spacing: -0.5px; }
+  .site-header .subtitle { font-size: 17px; font-weight: 300; opacity: 0.8; margin-top: var(--space-sm); }
+  .site-header .meta-badge {
+    display: flex; gap: var(--space-md); margin-top: var(--space-lg);
+    font-family: var(--font-mono); font-size: 13px; opacity: 0.7;
+  }
+
+  /* === Nav === */
+  .nav-bar { background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100; }
+  .nav-bar ul { list-style: none; display: flex; gap: 0; overflow-x: auto; padding: 0; margin: 0; }
+  .nav-bar li a {
+    display: block; padding: 12px 20px; font-size: 14px; font-weight: 500;
+    color: var(--foreground); white-space: nowrap;
+    border-bottom: 2px solid transparent; transition: border-color 0.2s, color 0.2s;
+  }
+  .nav-bar li a:hover { text-decoration: none; color: var(--primary); border-bottom-color: var(--primary); }
+
+  /* === Main === */
+  .main { padding: var(--space-2xl) 0 var(--space-3xl); }
+  section { margin-bottom: var(--space-2xl); }
+
+  /* === Timeline (custom for this flow with phases) === */
+  .flow { margin: var(--space-xl) 0; }
+
+  .phase {
+    margin-bottom: var(--space-xl);
+    border-left: 2px solid var(--border);
+    padding-left: var(--space-lg);
+    margin-left: 14px;
+  }
+
+  .phase-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    margin-bottom: var(--space-md);
+    margin-left: calc(-1 * var(--space-lg) - 14px);
+  }
+
+  .phase-dot {
+    width: 30px; height: 30px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 600; font-family: var(--font-mono);
+    color: #fff; flex-shrink: 0;
+  }
+  .phase-dot.sync { background: var(--primary); }
+  .phase-dot.async { background: var(--secondary); }
+  .phase-dot.interactive { background: var(--accent); }
+
+  .phase-title { font-size: 17px; font-weight: 600; }
+
+  .phase-tag {
+    display: inline-block;
+    font-family: var(--font-mono); font-size: 10px; font-weight: 500;
+    padding: 1px 8px; letter-spacing: 0.5px; text-transform: uppercase;
+    border-radius: 0;
+  }
+  .phase-tag.sync { background: var(--primary); color: #fff; }
+  .phase-tag.async { background: var(--secondary); color: #fff; }
+  .phase-tag.interactive { background: var(--accent); color: #fff; }
+
+  .flow-step-group { margin-bottom: var(--space-sm); }
+
+  .flow-step {
+    display: flex; gap: var(--space-md);
+    padding: var(--space-sm) 0;
+  }
+
+  .flow-step .step-num {
+    flex-shrink: 0;
+    width: 24px; text-align: right;
+    font-family: var(--font-mono); font-size: 13px;
+    color: #94a3b8; padding-top: 2px;
+  }
+
+  .flow-step .step-body { flex: 1; min-width: 0; }
+
+  .flow-step .step-title {
+    font-size: 16px; font-weight: 600; color: var(--foreground);
+  }
+
+  .flow-step .step-desc {
+    font-size: 15px; color: #475569; margin-top: 1px;
+  }
+
+  .flow-step .step-file {
+    font-family: var(--font-mono); font-size: 12px;
+    color: #94a3b8; margin-top: 2px;
+  }
+
+  .flow-arrow {
+    font-family: var(--font-mono); font-size: 14px;
+    color: #94a3b8; padding: 2px 0 2px 34px;
+  }
+
+  .flow-arrow.kafka {
+    color: var(--secondary);
+    font-weight: 500;
+  }
+
+  /* === Detail Card === */
+  .detail-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: var(--space-lg);
+    margin: var(--space-md) 0;
+  }
+  .detail-card h4 { margin-top: 0; margin-bottom: var(--space-sm); font-size: 16px; color: var(--primary); }
+  .detail-card p { margin-bottom: var(--space-sm); }
+  .detail-card p:last-child { margin-bottom: 0; }
+  .detail-card .highlight {
+    border-left: 3px solid var(--secondary);
+    background: var(--muted);
+    padding: var(--space-md);
+    margin: var(--space-sm) 0;
+    font-size: 15px;
+  }
+
+  /* === Two Column === */
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-lg);
+    margin: var(--space-md) 0;
+  }
+  @media (max-width: 640px) { .two-col { grid-template-columns: 1fr; } }
+
+  .col-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: var(--space-lg);
+  }
+  .col-card h4 {
+    margin-top: 0; font-size: 13px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: var(--space-sm);
+  }
+  .col-card.sync h4 { color: var(--secondary); }
+  .col-card.async h4 { color: var(--accent); }
+
+  .col-card ul { list-style: none; padding: 0; }
+  .col-card li {
+    padding: 6px 0; font-size: 15px; border-bottom: 1px solid var(--border);
+  }
+  .col-card li:last-child { border-bottom: none; }
+  .col-card li::before { content: '▸ '; color: var(--primary); font-family: var(--font-mono); }
+
+  /* === Pipeline Diagram === */
+  .pipeline { display: flex; gap: 0; margin: var(--space-lg) 0; overflow-x: auto; padding-bottom: var(--space-sm); align-items: center; flex-wrap: wrap; }
+  .pipeline-item { flex-shrink: 0; display: flex; align-items: center; }
+  .pipeline-item .node {
+    padding: 8px 16px; font-size: 12px; font-weight: 500; white-space: nowrap;
+  }
+  .pipeline-item .node.primary { background: var(--primary); color: #fff; }
+  .pipeline-item .node.sec { background: var(--secondary); color: #fff; }
+  .pipeline-item .node.done { background: var(--accent); color: #fff; }
+  .pipeline-item .node.wait { background: var(--border); color: var(--foreground); }
+  .pipeline-item .node.outline { background: transparent; border: 1px solid var(--border); color: var(--foreground); }
+  .pipeline-item .arrow { padding: 0 6px; color: var(--border); font-family: var(--font-mono); font-size: 16px; }
+
+  /* === Strategy Table === */
+  .table-wrap { overflow-x: auto; margin: var(--space-md) 0; }
+  table { width: 100%; border-collapse: collapse; font-size: 15px; }
+  thead th {
+    background: var(--primary); color: var(--on-primary);
+    padding: 10px 14px; text-align: left; font-weight: 500;
+    font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  tbody td { padding: 10px 14px; border-bottom: 1px solid var(--border); }
+  tbody tr:hover { background: var(--muted); }
+
+  /* === Callout === */
+  .callout {
+    background: var(--muted);
+    border-left: 3px solid var(--secondary);
+    padding: var(--space-md) var(--space-lg);
+    margin: var(--space-md) 0;
+    font-size: 15px;
+    max-width: var(--line-length);
+  }
+  .callout strong { color: var(--secondary); }
+  .callout.warn { border-left-color: #d97706; }
+  .callout.warn strong { color: #d97706; }
+  .callout.primary { border-left-color: var(--primary); }
+  .callout.primary strong { color: var(--primary); }
+
+  /* === Example === */
+  .example {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: var(--space-lg);
+    margin: var(--space-md) 0;
+  }
+  .example .ex-title {
+    font-size: 12px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.5px; color: var(--accent); margin-bottom: var(--space-sm);
+  }
+  .example code.block {
+    display: block; padding: var(--space-md); background: var(--muted);
+    margin: var(--space-sm) 0; font-size: 14px; line-height: 1.7; white-space: pre-wrap;
+  }
+
+  /* === Status Badge === */
+  .status-row { display: flex; gap: var(--space-sm); flex-wrap: wrap; margin: var(--space-sm) 0; }
+  .status-badge {
+    display: inline-block;
+    font-family: var(--font-mono); font-size: 11px;
+    padding: 3px 10px; border: 1px solid var(--border);
+  }
+  .status-badge.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+  .status-badge.wait { background: var(--muted); color: #64748b; }
+  .status-badge.done { background: #d6eae0; color: #1a5a3a; border-color: #b8d5c6; }
+  .status-badge.fail { background: #e8d6d6; color: #7a2e2e; border-color: #d5b8b8; }
+
+  /* === Store mention === */
+  .store-mention {
+    font-family: var(--font-mono); font-size: 13px;
+    color: #1a6e4b; background: #d6eae0;
+    display: inline-block; padding: 2px 8px;
+  }
+
+  /* === Tag === */
+  .tag {
+    display: inline-block; font-family: var(--font-mono); font-size: 11px; font-weight: 500;
+    padding: 2px 8px; border-radius: 0;
+  }
+  .tag.blue { background: #d4dcec; color: #1e3a5f; }
+  .tag.green { background: #d4e4db; color: #1a5a3a; }
+  .tag.red { background: #e8d6d6; color: #7a2e2e; }
+  .tag.gray { background: var(--border); color: #475569; }
+  .tag.amber { background: #e8dfd0; color: #6b5530; }
+
+  /* === Footer === */
+  .site-footer { border-top: 1px solid var(--border); padding: var(--space-xl) 0; font-size: 14px; color: #94a3b8; text-align: center; }
+
+  /* === Responsive === */
+  @media (max-width: 640px) {
+    body { font-size: 15px; }
+    .container { padding: 0 var(--space-md); }
+    h1 { font-size: 24px; }
+    h2 { font-size: 18px; }
+    .site-header { padding: var(--space-2xl) 0 var(--space-xl); }
+    .site-header h1 { font-size: 26px; }
+    .phase { padding-left: var(--space-md); margin-left: 8px; }
+    .phase-header { margin-left: calc(-1 * var(--space-md) - 8px); }
+    .nav-bar li a { padding: 10px 14px; font-size: 12px; }
+    .flowchart-nav { flex-wrap: wrap; gap: var(--space-sm); }
+    .flowchart-arrow { display: none; }
+    .nav-submenu { position: static; box-shadow: none; border: 1px solid var(--border); }
+  }
+
+  /* ============ 新增：手风琴折叠 ============ */
+  .accordion-header {
+    cursor: pointer;
+    user-select: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-md);
+    transition: background 0.2s;
+  }
+  .accordion-header:hover { background: rgba(30,58,95,0.03); }
+  .accordion-arrow {
+    font-size: 12px;
+    color: #94a3b8;
+    transition: transform 0.3s ease;
+    flex-shrink: 0;
+  }
+  .accordion-header.open .accordion-arrow { transform: rotate(180deg); }
+  .accordion-body {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.4s ease, opacity 0.3s ease, padding 0.3s ease;
+    opacity: 0;
+  }
+  .accordion-body.open {
+    max-height: 20000px;
+    opacity: 1;
+  }
+  .phase.accordion-item {
+    border-left: 2px solid var(--border);
+    padding-left: var(--space-lg);
+    margin-left: 14px;
+    margin-bottom: var(--space-md);
+  }
+  .phase.accordion-item .accordion-header {
+    margin-left: calc(-1 * var(--space-lg) - 14px);
+    padding: var(--space-sm) var(--space-md);
+  }
+  .depth-card.accordion-item {
+    padding: 0;
+    margin: var(--space-md) 0;
+    overflow: hidden;
+  }
+  .depth-card.accordion-item .accordion-header {
+    padding: var(--space-md) var(--space-lg);
+    margin: 0;
+  }
+  .depth-card.accordion-item .accordion-header h4 {
+    margin: 0;
+    font-size: 16px;
+    color: var(--primary);
+  }
+  .depth-card.accordion-item .accordion-body {
+    padding: 0 var(--space-lg);
+  }
+  .depth-card.accordion-item .accordion-body.open {
+    padding-bottom: var(--space-lg);
+  }
+  .accordion-summary {
+    font-size: 14px;
+    color: #64748b;
+    margin-top: 2px;
+    max-width: var(--line-length);
+  }
+  .phase.accordion-item .accordion-summary {
+    margin-left: calc(-1 * var(--space-lg) - 14px);
+    padding-left: calc(var(--space-lg) + 44px);
+    padding-bottom: var(--space-sm);
+  }
+
+  /* ============ 新增：流程图导航 ============ */
+  .flowchart-nav {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    margin: var(--space-lg) 0 var(--space-xl);
+    overflow-x: auto;
+    padding-bottom: var(--space-sm);
+  }
+  .flowchart-node {
+    flex-shrink: 0;
+    padding: 10px 18px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #fff;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+    white-space: nowrap;
+    position: relative;
+  }
+  .flowchart-node:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  }
+  .flowchart-node.active {
+    outline: 2px solid var(--foreground);
+    outline-offset: 2px;
+  }
+  .flowchart-node.sync { background: var(--primary); }
+  .flowchart-node.async { background: var(--secondary); }
+  .flowchart-node.interactive { background: var(--accent); }
+  .flowchart-arrow {
+    padding: 0 10px;
+    color: var(--border);
+    font-size: 18px;
+    font-family: var(--font-mono);
+    flex-shrink: 0;
+  }
+
+  /* ============ 新增：二级导航菜单 ============ */
+  .nav-bar li { position: relative; }
+  .nav-bar li:hover > .nav-submenu,
+  .nav-bar li:focus-within > .nav-submenu {
+    display: block;
+  }
+  .nav-submenu {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    min-width: 220px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-top: none;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+    z-index: 200;
+    list-style: none;
+    padding: 4px 0;
+  }
+  .nav-submenu li a {
+    display: block;
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 400;
+    color: var(--foreground);
+    border-bottom: none;
+    white-space: nowrap;
+  }
+  .nav-submenu li a:hover {
+    background: var(--muted);
+    color: var(--primary);
+    text-decoration: none;
+  }
+  .nav-submenu li a .sub-tag {
+    font-size: 10px;
+    font-family: var(--font-mono);
+    padding: 1px 6px;
+    margin-left: 8px;
+    color: #fff;
+  }
+  .nav-submenu li a .sub-tag.sync { background: var(--primary); }
+  .nav-submenu li a .sub-tag.async { background: var(--secondary); }
+  .nav-submenu li a .sub-tag.interactive { background: var(--accent); }
+</style>
+</head>
+<body>
+
+<!-- ============ HEADER ============ -->
+<header class="site-header">
+  <div class="container">
+    <h1>文档生命周期</h1>
+    <div class="subtitle">基于项目源码的完整链路 — 从 Upload 到 READY 状态</div>
+    <div class="meta-badge">
+      <span>DOC-LIFECYCLE-02</span>
+      <span>v2.0</span>
+      <span>2026-06</span>
+    </div>
+  </div>
+</header>
+
+<!-- ============ NAV ============ -->
+<nav class="nav-bar">
+  <div class="container">
+    <ul>
+      <li><a href="#overview">总览</a></li>
+      <li>
+        <a href="#flow">完整流程</a>
+        <ul class="nav-submenu">
+          <li><a href="#phase1" onclick="jumpToPhase(1);return false;">Phase 1 <span class="sub-tag sync">同步</span> 上传 &amp; 持久化</a></li>
+          <li><a href="#phase2" onclick="jumpToPhase(2);return false;">Phase 2 <span class="sub-tag async">异步</span> 解析 &amp; 策略推荐</a></li>
+          <li><a href="#phase3" onclick="jumpToPhase(3);return false;">Phase 3 <span class="sub-tag interactive">交互</span> 用户确认策略</a></li>
+          <li><a href="#phase4" onclick="jumpToPhase(4);return false;">Phase 4 <span class="sub-tag sync">同步</span> 触发索引构建</a></li>
+          <li><a href="#phase5" onclick="jumpToPhase(5);return false;">Phase 5 <span class="sub-tag async">异步</span> 索引构建执行</a></li>
+        </ul>
+      </li>
+      <li>
+        <a href="#structure-depth">结构节点 · 深度解析</a>
+        <ul class="nav-submenu">
+          <li><a href="#structure-overview" onclick="jumpToCard('structure-overview');return false;">四阶段提取流水线</a></li>
+          <li><a href="#structure-signal" onclick="jumpToCard('structure-signal');return false;">阶段一：信号提取</a></li>
+          <li><a href="#structure-ambiguity" onclick="jumpToCard('structure-ambiguity');return false;">阶段二：歧义消除</a></li>
+          <li><a href="#structure-hierarchy" onclick="jumpToCard('structure-hierarchy');return false;">阶段三：层级解析</a></li>
+          <li><a href="#structure-validate" onclick="jumpToCard('structure-validate');return false;">阶段四：校验修复</a></li>
+          <li><a href="#structure-parent" onclick="jumpToCard('structure-parent');return false;">父子节点关系</a></li>
+          <li><a href="#structure-downstream" onclick="jumpToCard('structure-downstream');return false;">下游应用</a></li>
+          <li><a href="#doc-profile" onclick="jumpToCard('doc-profile');return false;">文档画像</a></li>
+          <li><a href="#structure-patterns" onclick="jumpToCard('structure-patterns');return false;">设计模式</a></li>
+        </ul>
+      </li>
+      <li><a href="#transaction">事务</a></li>
+      <li><a href="#sync-async">同步 vs 异步</a></li>
+      <li><a href="#pipeline">流水线策略</a></li>
+      <li><a href="#example">示例</a></li>
+      <li><a href="#storage">落库清单</a></li>
+    </ul>
+  </div>
+</nav>
+
+<!-- ============ MAIN ============ -->
+<main class="main">
+  <div class="container">
+
+    <!-- ======== 总览 ======== -->
+    <section id="overview">
+      <h2>总览</h2>
+      <p>文档从上传到最终可用，经历 3 大阶段、8 个子阶段。文档有三个独立的状态轴协同推进：</p>
+
+      <div class="status-row">
+        <span class="status-badge wait">parseStatus</span>
+        <span class="status-badge active">WAIT_PARSE</span>
+        <span class="status-badge active">→ PARSING</span>
+        <span class="status-badge done">→ PARSE_SUCCESS</span>
+        <span class="status-badge fail">→ PARSE_FAILED</span>
+      </div>
+      <div class="status-row">
+        <span class="status-badge wait">strategyStatus</span>
+        <span class="status-badge active">WAIT_RECOMMEND</span>
+        <span class="status-badge active">→ RECOMMENDED</span>
+        <span class="status-badge done">→ CONFIRMED</span>
+        <span class="status-badge wait">→ EXPIRED</span>
+      </div>
+      <div class="status-row">
+        <span class="status-badge wait">indexStatus</span>
+        <span class="status-badge active">WAIT_BUILD</span>
+        <span class="status-badge active">→ BUILDING</span>
+        <span class="status-badge done">→ BUILD_SUCCESS</span>
+        <span class="status-badge fail">→ BUILD_FAILED</span>
+      </div>
+
+      <div class="callout primary">
+        <strong>READY 状态：</strong> <code>parseStatus=PARSE_SUCCESS(3) + strategyStatus=CONFIRMED(3) + indexStatus=BUILD_SUCCESS(3)</code> 三者同时满足时，文档才可被检索。
+      </div>
+    </section>
+
+    <!-- ======== 完整流程 ======== -->
+    <section id="flow">
+      <h2>完整流程</h2>
+      <p>所有阶段按照实际代码执行顺序展示。<span class="tag blue">同步</span> <span class="tag gray">异步(Kafka)</span> <span class="tag green">用户交互</span></p>
+
+      <!-- 可视化流程图导航 -->
+      <div class="flowchart-nav">
+        <div class="flowchart-node sync" data-phase="1" onclick="jumpToPhase(1)"><span style="font-size:11px;opacity:0.7;">Phase 1</span><br>上传 &amp; 持久化</div>
+        <span class="flowchart-arrow">→</span>
+        <div class="flowchart-node async" data-phase="2" onclick="jumpToPhase(2)"><span style="font-size:11px;opacity:0.7;">Phase 2</span><br>解析 &amp; 策略推荐</div>
+        <span class="flowchart-arrow">→</span>
+        <div class="flowchart-node interactive" data-phase="3" onclick="jumpToPhase(3)"><span style="font-size:11px;opacity:0.7;">Phase 3</span><br>用户确认策略</div>
+        <span class="flowchart-arrow">→</span>
+        <div class="flowchart-node sync" data-phase="4" onclick="jumpToPhase(4)"><span style="font-size:11px;opacity:0.7;">Phase 4</span><br>触发索引构建</div>
+        <span class="flowchart-arrow">→</span>
+        <div class="flowchart-node async" data-phase="5" onclick="jumpToPhase(5)"><span style="font-size:11px;opacity:0.7;">Phase 5</span><br>索引构建执行</div>
+      </div>
+
+      <div class="flow">
+
+        <!-- ===== PHASE 1 ===== -->
+        <div class="phase accordion-item" id="phase1">
+          <div class="accordion-header" onclick="toggleAccordion(this)">
+            <div class="phase-header" style="margin:0;flex:1;">
+              <div class="phase-dot sync">1</div>
+              <div class="phase-title">上传 &amp; 持久化</div>
+              <span class="phase-tag sync">同步 HTTP</span>
+            </div>
+            <span class="accordion-arrow">▼</span>
+          </div>
+          <div class="accordion-summary">文件校验 → MinIO 原始文件存储 → DB 事务写入 → 发 Kafka 触发异步解析</div>
+          <div class="accordion-body">
+            <div class="flow-step-group">
+              <div class="flow-step">
+                <div class="step-num">1.1</div>
+                <div class="step-body">
+                  <div class="step-title">文件校验</div>
+                  <div class="step-desc">校验文件非空、文件名非空、扩展名在白名单内：PDF/DOC/DOCX/TXT/MD/HTML</div>
+                  <div class="step-file">DocumentManageServiceImpl.upload()</div>
+                </div>
+              </div>
+              <div class="flow-step">
+                <div class="step-num">1.2</div>
+                <div class="step-body">
+                  <div class="step-title">原始文件落库 → MinIO</div>
+                  <div class="step-desc">路径：<code>rag/document/{documentId}/{timestamp}-{originalName}</code></div>
+                  <div class="step-file">MinioDocumentStorageService.uploadOriginalFile()</div>
+                </div>
+              </div>
+              <div class="flow-step">
+                <div class="step-num">1.3</div>
+                <div class="step-body">
+                  <div class="step-title">DB 记录写入 <span class="tag blue">事务内</span></div>
+                  <div class="step-desc"><span class="store-mention">文档记录(super_agent_document)落库</span> · <span class="store-mention">任务记录(super_agent_document_task)落库</span></div>
+                  <div class="step-file">TransactionTemplate → 手动控制事务边界</div>
+                </div>
+              </div>
+            </div>
+            <div class="flow-arrow kafka">─── Kafka: super-agent-document-parse-route ───→ 异步</div>
+          </div>
+        </div>
+
+        <!-- ===== PHASE 2 ===== -->
+        <div class="phase accordion-item" id="phase2">
+          <div class="accordion-header" onclick="toggleAccordion(this)">
+            <div class="phase-header" style="margin:0;flex:1;">
+              <div class="phase-dot async">2</div>
+              <div class="phase-title">解析 &amp; 策略推荐</div>
+              <span class="phase-tag async">异步 Kafka</span>
+            </div>
+            <span class="accordion-arrow">▼</span>
+          </div>
+          <div class="accordion-summary">Tika 解析 → 结构节点提取 → 导航索引同步 → 文档画像 → 策略推荐</div>
+          <div class="accordion-body">
+            <div class="flow-step-group">
+              <div class="flow-step">
+                <div class="step-num">2.1</div>
+                <div class="step-body">
+                  <div class="step-title">内容解析 + 结构节点提取 <span class="tag blue">同一方法内</span></div>
+                  <div class="step-desc">从 MinIO 下载原始文件 → PDF/DOCX/HTML 用 Apache Tika 解析，TXT/MD 直接 UTF-8 解码 → 文本清洗(换行符/空字符/多余空白规范化) → <strong>紧接着在同一方法内</strong>调用 <code>structureNodeExtractor.extract()</code> 完成标题/章节信号提取、歧义检测、层级树构建和校验，返回 <code>DocumentAnalysisResult(parsedText, structureNodes, ...)</code></div>
+                  <div class="step-file">TikaDocumentParserService.parse() → 内部调用 DocumentStructureNodeExtractor.extract()</div>
+                </div>
+              </div>
+              <div class="flow-step">
+                <div class="step-num">2.2</div>
+                <div class="step-body">
+                  <div class="step-title">解析文本落库 → MinIO</div>
+                  <div class="step-desc">路径：<code>rag/parsed-text/{documentId}.txt</code></div>
+                  <div class="step-file">MinioDocumentStorageService.uploadParsedText()</div>
+                </div>
+              </div>
+              <div class="flow-step">
+                <div class="step-num">2.3</div>
+                <div class="step-body">
+                  <div class="step-title">结构节点落库 → MySQL</div>
+                  <div class="step-desc">步骤 2.1 中已提取的结构节点候选列表，通过 <code>replaceDocumentNodes()</code> 先删后插写入 <span class="store-mention">super_agent_document_structure_node</span> 表，同时同步到 ES 导航索引和 Neoj4 图投影（如启用）</div>
+                  <div class="step-file">DocumentStructureNodeServiceImpl.replaceDocumentNodes()</div>
+                </div>
+              </div>
+              <div class="flow-step">
+                <div class="step-num">2.4</div>
+                <div class="step-body">
+                  <div class="step-title">导航索引同步（可选）</div>
+                  <div class="step-desc">结构节点提取完成后，同步到两个外部存储用于 RAG 检索时的章节定位：</div>
+                  <div style="margin-top:8px;max-width:var(--line-length);">
+                    <div style="background:var(--muted);padding:12px;margin-bottom:8px;border-left:2px solid var(--primary);">
+                      <div style="font-weight:600;font-size:14px;">Elasticsearch 导航索引 <span class="store-mention" style="font-size:11px;">super_agent_document_navigation</span></div>
+                      <div style="font-size:13px;margin-top:4px;">存储每个结构节点（章节/步骤）的 title、sectionPath、anchorText、contentText 等，IK 分词。<br>
+                      <strong>RAG 用途：</strong> <code>DocumentQuestionRouter.resolveByNavigationIndex()</code> 在问题路由阶段，用改写后的问题对导航索引做全文检索（title^20 + sectionPath^15 + anchorText^5），快速定位问题指向的章节，从而决定执行模式（GRAPH_ONLY / GRAPH_THEN_EVIDENCE / RETRIEVAL）。</div>
+                    </div>
+                    <div style="background:var(--muted);padding:12px;border-left:2px solid #6B5B8A;">
+                      <div style="font-weight:600;font-size:14px;">Neo4j 图投影 <span class="tag">默认关闭</span></div>
+                      <div style="font-size:13px;margin-top:4px;">将结构节点映射为图节点（Document / Section / Item 三种标签），并建立 HAS_CHILD、HAS_ITEM、NEXT_SIBLING 等 9 种关系。<br>
+                      <strong>RAG 用途：</strong> 支持 <code>GraphOnlyExecutor</code>（查询相邻章节/子章节用于大纲回答）和 <code>GraphThenEvidenceExecutor</code>（定位章节内的具体步骤/条目并提取证据）。无需向量检索即可回答"上一节是什么？""第三步的内容？"这类结构化问题。</div>
+                    </div>
+                  </div>
+                  <div class="step-file">ElasticsearchDocumentNavigationIndexService / Neo4jDocumentStructureGraphProjectionService</div>
+                </div>
+              </div>
+              <div class="flow-step">
+                <div class="step-num">2.5</div>
+                <div class="step-body">
+                  <div class="step-title">文档画像生成</div>
+                  <div class="step-desc">生成摘要、文档类型(faq/troubleshooting/rule/spec/manual/intro)、核心主题、示例问题 → <span class="store-mention">画像(super_agent_document_profile)落库</span></div>
+                  <div class="step-file">DocumentProfileServiceImpl.generateProfile()</div>
+                </div>
+              </div>
+              <div class="flow-step">
+                <div class="step-num">2.6</div>
+                <div class="step-body">
+                  <div class="step-title">策略推荐</div>
+                  <div class="step-desc">根据文档分析结果推荐父块/子块切割策略 → <span class="store-mention">策略计划(super_agent_document_strategy_plan)+步骤(super_agent_document_strategy_step)落库</span> → 文档状态更新：<code>parsetStatus=PARSE_SUCCESS, strategyStatus=RECOMMENDED</code></div>
+                  <div class="step-file">DocumentStrategyServiceImpl.recommendStrategy()</div>
+                </div>
+              </div>
+            </div>
+            <div class="flow-arrow">等待用户确认策略</div>
+          </div>
+        </div>
+
+        <!-- ===== PHASE 3 ===== -->
+        <div class="phase accordion-item" id="phase3">
+          <div class="accordion-header" onclick="toggleAccordion(this)">
+            <div class="phase-header" style="margin:0;flex:1;">
+              <div class="phase-dot interactive">3</div>
+              <div class="phase-title">用户确认策略</div>
+              <span class="phase-tag interactive">同步 HTTP</span>
+            </div>
+            <span class="accordion-arrow">▼</span>
+          </div>
+          <div class="accordion-summary">用户接受或调整推荐策略 → 更新 strategyStatus=CONFIRMED → 发 Kafka 触发索引构建</div>
+          <div class="accordion-body">
+            <div class="flow-step-group">
+              <div class="flow-step">
+                <div class="step-num">3.1</div>
+                <div class="step-body">
+                  <div class="step-title">确认/调整策略</div>
+                  <div class="step-desc">用户可以接受系统推荐，或调整后确认。旧计划标记 DISCARDED，新计划标记 USER_ADJUST → 更新 <code>strategyStatus=CONFIRMED</code></div>
+                  <div class="step-file">DocumentManageServiceImpl.confirmStrategy()</div>
+                </div>
+              </div>
+            </div>
+            <div class="flow-arrow kafka">─── Kafka: super-agent-document-index-build ───→ 异步</div>
+          </div>
+        </div>
+
+        <!-- ===== PHASE 4 ===== -->
+        <div class="phase accordion-item" id="phase4">
+          <div class="accordion-header" onclick="toggleAccordion(this)">
+            <div class="phase-header" style="margin:0;flex:1;">
+              <div class="phase-dot sync">4</div>
+              <div class="phase-title">触发索引构建</div>
+              <span class="phase-tag sync">同步 HTTP</span>
+            </div>
+            <span class="accordion-arrow">▼</span>
+          </div>
+          <div class="accordion-summary">校验状态 → 创建构建任务 → indexStatus=BUILDING → 发 Kafka 消息</div>
+          <div class="accordion-body">
+            <div class="flow-step-group">
+              <div class="flow-step">
+                <div class="step-num">4.1</div>
+                <div class="step-body">
+                  <div class="step-title">校验并发发消息</div>
+                  <div class="step-desc">校验 parseStatus=PARSE_SUCCESS, strategyStatus=CONFIRMED, 无运行中的 BUILD_INDEX 任务 → 创建构建任务 → 更新 <code>indexStatus=BUILDING</code> → 发 Kafka 消息</div>
+                  <div class="step-file">DocumentManageServiceImpl.buildIndex()</div>
+                </div>
+              </div>
+            </div>
+            <div class="flow-arrow kafka">─── Kafka: super-agent-document-index-build ───→ 异步</div>
+          </div>
+        </div>
+
+        <!-- ===== PHASE 5 ===== -->
+        <div class="phase accordion-item" id="phase5">
+          <div class="accordion-header" onclick="toggleAccordion(this)">
+            <div class="phase-header" style="margin:0;flex:1;">
+              <div class="phase-dot async">5</div>
+              <div class="phase-title">索引构建执行（核心）</div>
+              <span class="phase-tag async">异步 Kafka</span>
+            </div>
+            <span class="accordion-arrow">▼</span>
+          </div>
+          <div class="accordion-summary">父块/子块分块 → 向量化 → ES 关键词索引 → 文档进入 READY 状态</div>
+          <div class="accordion-body">
+            <div class="flow-step-group">
+              <div class="flow-step">
+                <div class="step-num">5.1</div>
+                <div class="step-body">
+                  <div class="step-title">分块执行 — 父块/子块流水线</div>
+                  <div class="step-desc">从 MinIO 下载解析文本 → 按推荐策略执行父块切割 → 对每个父块执行子块切割 → 组装父块+子块实体</div>
+                  <div class="step-file">DocumentStrategyServiceImpl.buildParentBlocks()</div>
+                </div>
+              </div>
+              <div class="flow-step">
+                <div class="step-num">5.2</div>
+                <div class="step-body">
+                  <div class="step-title">块后处理</div>
+                  <div class="step-desc">过滤空块 → 构建父子关联 → 分配全局序号 → 设置向量状态(WAIT_VECTOR) → <span class="store-mention">父块(super_agent_document_parent_block)+块(super_agent_document_chunk)落库</span></div>
+                </div>
+              </div>
+              <div class="flow-step">
+                <div class="step-num">5.3</div>
+                <div class="step-body">
+                  <div class="step-title">向量化</div>
+                  <div class="step-desc">按 10 条一批调用 Embedding 模型 → <span class="store-mention">向量(super_agent_document_embedding)落库(PGVector)</span> → 更新 chunk 向量状态为 VECTOR_SUCCESS</div>
+                  <div class="step-file">DefaultDocumentVectorGateway.vectorize()</div>
+                </div>
+              </div>
+              <div class="flow-step">
+                <div class="step-num">5.4</div>
+                <div class="step-body">
+                  <div class="step-title">关键词索引</div>
+                  <div class="step-desc"><span class="store-mention">ES 关键词索引落库</span> Elasticsearch → <code>super_agent_document_keyword</code>（IK 分词器，支持中英文）</div>
+                  <div class="step-file">ElasticsearchDocumentKeywordSearchGateway.indexChunks()</div>
+                </div>
+              </div>
+              <div class="flow-step">
+                <div class="step-num">5.5</div>
+                <div class="step-body">
+                  <div class="step-title">完成</div>
+                  <div class="step-desc">更新计划状态为 EXECUTED → 文档 <code>indexStatus=BUILD_SUCCESS</code> → 文档进入 <strong>READY</strong> 状态</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ======== 深度解析：结构节点提取 ======== -->
+    <section id="structure-depth">
+      <style>
+        .depth-card { background: var(--surface); border: 1px solid var(--border); padding: var(--space-lg); margin: var(--space-md) 0; }
+        .depth-card h4 { margin-top: 0; margin-bottom: var(--space-sm); font-size: 16px; color: var(--primary); }
+        .depth-card h5 { font-size: 14px; margin-top: var(--space-md); margin-bottom: var(--space-sm); color: var(--secondary); }
+        .depth-card p { margin-bottom: var(--space-sm); }
+        .depth-card p:last-child { margin-bottom: 0; }
+        .depth-card .highlight { border-left: 3px solid var(--secondary); background: var(--muted); padding: var(--space-md); margin: var(--space-sm) 0; font-size: 15px; }
+        .depth-card .code-block { display: block; padding: var(--space-md); background: #1a1a2e; color: #e4e7eb; margin: var(--space-sm) 0; font-size: 13px; line-height: 1.6; font-family: var(--font-mono); white-space: pre-wrap; border-radius: 0; overflow-x: auto; }
+        .depth-card .key-point { display: inline-block; font-family: var(--font-mono); font-size: 11px; font-weight: 600; padding: 2px 10px; letter-spacing: 0.3px; }
+        .depth-card .key-point.design { background: #1E3A5F; color: #fff; }
+        .depth-card .key-point.code { background: #2563EB; color: #fff; }
+        .depth-card .key-point.algo { background: #059669; color: #fff; }
+        .depth-card .key-point.llm { background: #7c3aed; color: #fff; }
+        .depth-card .highlight-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-md); margin: var(--space-sm) 0; }
+        @media (max-width: 640px) { .depth-card .highlight-grid { grid-template-columns: 1fr; } }
+        .depth-card .highlight-grid .cell { background: var(--muted); padding: var(--space-md); border-left: 2px solid var(--secondary); font-size: 14px; }
+        .depth-card .highlight-grid .cell strong { display: block; margin-bottom: 4px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.3px; color: var(--primary); }
+        .depth-card .flow-arrows { display: flex; gap: 0; margin: var(--space-md) 0; overflow-x: auto; align-items: center; flex-wrap: wrap; }
+        .depth-card .flow-arrows .fa-node { padding: 8px 16px; font-size: 12px; font-weight: 500; white-space: nowrap; font-family: var(--font-mono); }
+        .depth-card .flow-arrows .fa-node.s1 { background: #1E3A5F; color: #fff; }
+        .depth-card .flow-arrows .fa-node.s2 { background: #2563EB; color: #fff; }
+        .depth-card .flow-arrows .fa-node.s3 { background: #059669; color: #fff; }
+        .depth-card .flow-arrows .fa-node.s4 { background: #7c3aed; color: #fff; }
+        .depth-card .flow-arrows .fa-arr { padding: 0 8px; color: var(--border); font-size: 18px; }
+        .depth-table { width: 100%; border-collapse: collapse; font-size: 14px; margin: var(--space-sm) 0; }
+        .depth-table th { background: var(--primary); color: var(--on-primary); padding: 8px 12px; text-align: left; font-weight: 500; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .depth-table td { padding: 8px 12px; border-bottom: 1px solid var(--border); }
+        .depth-table tr:hover { background: var(--muted); }
+        .depth-table td code { font-size: 12px; }
+      </style>
+
+      <h2>结构节点提取 — 深度解析</h2>
+      <p>从解析文本中提取章节结构树是整个文档生命周期的技术核心之一。以下从源码级别展开每个子阶段的设计细节和关键决策点，适合面试深度问答。</p>
+
+      <div class="callout primary">
+        <strong>面试切入角度：</strong> 面试官可能会问"如果不依赖 LLM，如何从纯文本中判断一行是不是标题？""如何处理「1. 简介」这种既是列表又是标题的歧义行？""结构树构建完后如何保证父子关系正确？"—— 本节的每个组件都在回答这类问题。
+      </div>
+
+      <!-- ===== 流水线总览 ===== -->
+      <div class="depth-card accordion-item" id="structure-overview">
+        <div class="accordion-header" onclick="toggleAccordion(this)">
+          <h4>四阶段提取流水线</h4>
+          <span class="accordion-arrow">▼</span>
+        </div>
+        <div class="accordion-body">
+        <p>提取引擎 <code>DocumentStructureNodeExtractor</code> 使用门面模式（Facade）编排四个独立组件，每阶段职责清晰、可单独测试：</p>
+        <div class="flow-arrows">
+          <div class="fa-node s1">信号提取</div><span class="fa-arr">→</span>
+          <div class="fa-node s2">歧义消除</div><span class="fa-arr">→</span>
+          <div class="fa-node s3">层级解析</div><span class="fa-arr">→</span>
+          <div class="fa-node s4">校验修复</div>
+        </div>
+        <div class="highlight-grid">
+          <div class="cell">
+            <strong>阶段一 · 信号提取</strong>
+            SignalExtractor.classify() 对每行文本做优先级链分类，输出 HEADING / LIST_ITEM / HEADING_CANDIDATE / BODY 等信号。
+          </div>
+          <div class="cell">
+            <strong>阶段二 · 歧义消除</strong>
+            AmbiguityResolver 对 HEADING_CANDIDATE 信号调用 LLM（或回退规则）重定性为 HEADING / LIST_ITEM / BODY。
+          </div>
+          <div class="cell">
+            <strong>阶段三 · 层级解析</strong>
+            HierarchyResolver 将信号列表构建为草案树，处理深度推导、列表嵌套栈、父子关系分配。
+          </div>
+          <div class="cell">
+            <strong>阶段四 · 校验修复</strong>
+            TreeValidator 执行 6 步修复管道（合并重复标题→修复编号层级→修复无效父级→重算深度→重建路径→重建兄弟链接），输出最终候选节点。
+          </div>
+        </div>
+        <div class="code-block">// DocumentStructureNodeExtractor.java — 门面核心
+public List&lt;DocumentStructureNodeCandidate&gt; extract(String documentTitle, String parsedText) {
+    DocumentStructureSignalBatch signalBatch = signalExtractor.extract(title, text);
+    List&lt;DocumentStructureSignal&gt; resolvedSignals = ambiguityResolver.resolve(title, allLines, rawSignals);
+    List&lt;DocumentStructureNodeDraft&gt; drafts = hierarchyResolver.resolve(title, resolvedSignals);
+    return treeValidator.validateAndBuild(title, drafts);
+}</div>
+        <p><span class="key-point design">设计要点</span> 门面模式使调用方（TikaDocumentParserService）只需一行 <code>extract()</code>，内部4个组件均可独立注入 Mock 进行单元测试。新增提取逻辑无需修改调用方。</p>
+        </div>
+      </div>
+
+      <!-- ===== 阶段一：信号提取 ===== -->
+      <div class="depth-card accordion-item" id="structure-signal">
+        <div class="accordion-header" onclick="toggleAccordion(this)">
+          <h4>阶段一：信号提取 — 正则优先级链</h4>
+          <span class="accordion-arrow">▼</span>
+        </div>
+        <div class="accordion-body">
+        <p><code>DocumentStructureSignalExtractor</code> 是整个系统最复杂的类（~615行），职责是将纯文本行分类为结构化信号。</p>
+
+        <h5>逻辑行构建 — 原始行 → 逻辑行</h5>
+        <p>解析文本（<code>parsedText</code>）不能直接用于信号分类，必须先转化为"逻辑行"列表。转换分两步：</p>
+
+        <p><strong>第 1 步：按 <code>\n</code> 分原始行</strong></p>
+        <div class="code-block">String[] rawLines = parsedText.split("\n", -1);
+// 每一行得到: sourceLineNo（从1开始）、rawText</div>
+
+        <p><strong>第 2 步：每行尝试内联拆分（splitInlineSegments）</strong></p>
+        <div class="highlight" style="margin-bottom:var(--space-sm)">
+          <strong>不拆分的行（直接返回整行）：</strong><br>
+          <code># 标题</code> / <code>|表格|</code> / <code>&gt; 引用</code> / <code>---</code> 分隔线<br>
+          <span style="font-size:13px;color:#64748b;">这些是完整的结构元素，从中间拆分会破坏语义。</span>
+        </div>
+        <div class="highlight">
+          <strong>触发拆分的行：</strong><br>
+          普通正文行包含 <code>第X步</code> / <code>步骤X</code> 模式时，在每步的边界位置切开。<br>
+          <span style="font-size:13px;color:#64748b;">目的是将一行里的多个步骤拆成独立逻辑行，每个单独识别为 STEP_ITEM。</span>
+        </div>
+        <p><strong>每个逻辑行有 6 个属性：</strong></p>
+        <table class="depth-table">
+          <thead><tr><th>属性</th><th>含义</th><th>示例</th></tr></thead>
+          <tbody>
+            <tr><td><code>lineNo</code></td><td>全局逻辑行号（从1自增，每个逻辑行一个）</td><td>1, 2, 3...</td></tr>
+            <tr><td><code>sourceLineNo</code></td><td>原始行号（追溯来自第几行）</td><td>原始第1行 → 1</td></tr>
+            <tr><td><code>segmentIndex</code></td><td>同一原始行内的片段序号</td><td>1（没拆） / 1,2（拆了两段）</td></tr>
+            <tr><td><code>indentLevel</code></td><td>缩进级别（空格数/4每tab）</td><td>0 / 4 / 8</td></tr>
+            <tr><td><code>rawText</code></td><td>原始文本（trim前）</td><td>" 第一步：配置环境"</td></tr>
+            <tr><td><code>normalizedText</code></td><td>规范化文本（trim后）</td><td>"第一步：配置环境"</td></tr>
+          </tbody>
+        </table>
+
+        <p><strong>完整示例：</strong></p>
+        <div class="code-block">// 输入文本（3行）
+"# 简介第一步：配置环境 第二步：安装依赖"
+
+// 第0行: "# 简介"
+//   → splitInlineSegments: 以#开头，不拆分 → 1个逻辑行
+//   → lineNo=1, sourceLineNo=1, segmentIndex=1, rawText="# 简介"
+
+// 第1行: "第一步：配置环境 第二步：安装依赖"
+//   → splitInlineSegments: 非#/|/>，尝试拆"第X步"
+//   → 找到2个边界 → 拆成2段
+//   → lineNo=2, sourceLineNo=2, segmentIndex=1, rawText="第一步：配置环境"
+//   → lineNo=3, sourceLineNo=2, segmentIndex=2, rawText="第二步：安装依赖"
+//     ↑                        ↑
+//   lineNo各自递增     sourceLineNo都指向原始第2行
+
+// 第2行: ""（空行）
+//   → segments.isEmpty() → 直接加1条
+//   → lineNo=4, sourceLineNo=3, segmentIndex=1, rawText=""</div>
+        <p><span class="key-point code">关键设计</span> 引入 <code>sourceLineNo</code> + <code>segmentIndex</code> 的目的是：内联拆分后仍可追溯原始行位置，用于上下文构建（<code>buildContext()</code> 时需要找前/后非空行）和日志调试。</p>
+
+        <h5>分类优先级链（classify 方法）</h5>
+        <p>对每个逻辑行，按以下优先级依次尝试匹配，一旦命中即返回：</p>
+        <table class="depth-table">
+          <thead><tr><th>优先级</th><th>匹配模式</th><th>输出 SignalKind</th><th>置信度</th></tr></thead>
+          <tbody>
+            <tr><td>1</td><td>空行</td><td><code>BLANK</code></td><td>1.0</td></tr>
+            <tr><td>2</td><td>重复噪声（高频页眉/页脚/版权）</td><td><code>NOISE</code></td><td>0.99</td></tr>
+            <tr><td>3</td><td>页码（"第1页" / "Page 1" / "1/5"）</td><td><code>NOISE</code></td><td>0.98</td></tr>
+            <tr><td>4</td><td>Markdown 标题 <code>^(#{1,6})\s+</code></td><td><code>HEADING</code></td><td>0.98</td></tr>
+            <tr><td>5</td><td>明确步骤 "第一步/步骤1"</td><td><code>STEP_ITEM</code></td><td>0.96</td></tr>
+            <tr><td>6</td><td>中文章节 "第三章 标题"</td><td><code>HEADING</code></td><td>0.96</td></tr>
+            <tr><td>7</td><td>附录 "附录 A 说明"</td><td><code>HEADING</code></td><td>0.92</td></tr>
+            <tr><td>8</td><td>多级数字 "1.2.3 标题"</td><td><code>HEADING</code></td><td>0.95</td></tr>
+            <tr><td>9</td><td>表格行 <code>|...|</code></td><td><code>TABLE_ROW</code></td><td>0.90</td></tr>
+            <tr><td>10</td><td>引用 <code>&gt;</code></td><td><code>QUOTE</code></td><td>0.88</td></tr>
+            <tr><td>11</td><td>复选框 <code>[ ] / [x]</code></td><td><code>LIST_ITEM</code></td><td>0.92</td></tr>
+            <tr><td>12</td><td>无序列表 <code>- / * / +</code></td><td><code>LIST_ITEM</code></td><td>0.90</td></tr>
+            <tr><td>13</td><td>单级数字 "1. 内容" <span class="key-point code">歧义点</span></td><td><code>HEADING_CANDIDATE</code> 或 <code>LIST_ITEM</code></td><td>0.62 / 0.93</td></tr>
+            <tr><td>14</td><td>中文大纲 "一、内容" <span class="key-point code">歧义点</span></td><td><code>HEADING_CANDIDATE</code> 或 <code>LIST_ITEM</code></td><td>0.60 / 0.92</td></tr>
+            <tr><td>15</td><td>普通正文 + 启发式判断</td><td><code>HEADING_CANDIDATE</code> 或 <code>BODY</code></td><td>0.58 / 1.0</td></tr>
+          </tbody>
+        </table>
+
+        <h5>歧义判定关键逻辑</h5>
+        <p>单级数字（如 "1. 内容"）和中文大纲（如 "一、内容"）是最典型的歧义场景。系统通过三个维度综合判断：</p>
+        <div class="highlight">
+          <strong>1) 序号连续性检测（isNeighborSequence）：</strong> 检查当前行序号与前/后行是否构成连续整数序列。例如前一行是"1. 配置"，当前行是"2. 部署"→ 连续 → 判为 LIST_ITEM。<br><br>
+          <strong>2) 引导句检测（previousIntroducesList）：</strong> 前一行是否以冒号（：:）结尾。例如"操作步骤如下："后跟"1. 打开配置"→ 判为 LIST_ITEM。<br><br>
+          <strong>3) 标题启发式（looksLikePlainHeading）：</strong> 短文本（≤32字符）、无句号逗号、前后有空行隔离、下一行非分隔线 → 判为 HEADING_CANDIDATE。
+        </div>
+        <p><span class="key-point algo">算法要点</span> 中文数字解析（parseLooseNumber）处理了"十一/二十/二十一/一百"等组合，支持 1-100 范围的中文数字转整数。</p>
+      </div>
+
+      <!-- ===== 阶段二：LLM 歧义消除 ===== -->
+      <div class="depth-card accordion-item" id="structure-ambiguity">
+        <div class="accordion-header" onclick="toggleAccordion(this)">
+          <h4>阶段二：LLM 歧义消除 — 规则兜底设计</h4>
+          <span class="accordion-arrow">▼</span>
+        </div>
+        <div class="accordion-body">
+        <p><code>DocumentStructureAmbiguityResolver</code> 对标记为 <code>HEADING_CANDIDATE</code> 的歧义行进行二次判别。关键设计点：</p>
+
+        <h5>配置化阈值过滤</h5>
+        <table class="depth-table">
+          <thead><tr><th>参数</th><th>默认值</th><th>含义</th></tr></thead>
+          <tbody>
+            <tr><td><code>llmDisambiguationEnabled</code></td><td>true</td><td>总开关，可随时关闭退化为纯规则</td></tr>
+            <tr><td><code>ambiguityConfidenceFloor</code></td><td>0.45</td><td>置信度低于此值的信号直接忽略（太不可靠）</td></tr>
+            <tr><td><code>ambiguityConfidenceCeil</code></td><td>0.80</td><td>置信度高于此值的信号已是明确分类，无需 LLM</td></tr>
+            <tr><td><code>maxAmbiguousSignalsPerCall</code></td><td>8</td><td>单次 LLM 调用最多处理 8 个歧义点（Token 控制）</td></tr>
+            <tr><td><code>contextWindowLines</code></td><td>2</td><td>每个歧义点的上下文窗口行数</td></tr>
+          </tbody>
+        </table>
+
+        <h5>Prompt 构造策略</h5>
+        <p>每个歧义点携带上下文窗口（含行号标记），LLM 决策线号 + 重定性结果：</p>
+        <div class="code-block">// 生成的 Prompt 片段示例（简化）
+文档标题：API 使用指南
+第 1 个候选块（行号 15）：
+  13: 本章主要介绍认证流程
+  14:
+&gt;&gt; 15: 1. 认证方式          ← 歧义行，初始分类 HEADING_CANDIDATE
+  16: 支持 API Key 和 OAuth 两种方式
+  17: 认证方式的选择取决于应用场景
+
+请判定：line 15 是 HEADING、LIST_ITEM 还是 BODY？</div>
+
+        <h5>LLM 输出解析与合并</h5>
+        <p>LLM 返回 JSON 数组，解析后按行号回填：</p>
+        <div class="code-block">// LLM 返回示例
+[
+  {"line_no": 15, "resolved_kind": "HEADING", "level_hint": 1},
+  {"line_no": 42, "resolved_kind": "LIST_ITEM", "level_hint": null}
+]
+
+// applyResult() 合并到原始信号
+→ kind 更新为 HEADING, levelHint=1, confidence 提升至 max(原值, 0.88)
+→ reasons 追加 "llm-disambiguated"</div>
+
+        <div class="highlight">
+          <strong>面试重点：回退机制</strong> — 任何异常（LLM 超时/JSON解析失败/模型不可用）都通过 try-catch 静默回退到原始信号列表。系统不会因为 LLM 故障而中断整个提取流程。<br>
+          <code>catch (Exception exception) { log.warn("结构歧义判定失败，回退到规则结果"); return sourceSignals; }</code>
+        </div>
+        <p><span class="key-point llm">LLM 设计原则</span> LLM 仅用于"规则无法确定的边界情况"（置信度 0.45~0.80），且单次调用不超过 8 个点。这控制了成本和延迟，也避免了 LLM 对明确行（置信度 &gt; 0.80）的误判。</p>
+        </div>
+      </div>
+
+      <!-- ===== 阶段三：层级解析 ===== -->
+      <div class="depth-card accordion-item" id="structure-hierarchy">
+        <div class="accordion-header" onclick="toggleAccordion(this)">
+          <h4>阶段三：层级树构建 — 状态机 + 栈</h4>
+          <span class="accordion-arrow">▼</span>
+        </div>
+        <div class="accordion-body">
+        <p><code>DocumentStructureHierarchyResolver</code> 将信号列表转换为草案节点树，核心是一个信号类型驱动的状态机。</p>
+
+        <h5>状态机转移规则</h5>
+        <table class="depth-table">
+          <thead><tr><th>信号类型</th><th>动作</th><th>状态更新</th></tr></thead>
+          <tbody>
+            <tr><td><code>BLANK</code></td><td>重置列表状态</td><td><code>currentListItem=null, listStack.clear()</code></td></tr>
+            <tr><td><code>NOISE</code></td><td>忽略</td><td>无变化</td></tr>
+            <tr><td><code>BODY / TABLE_ROW / QUOTE</code></td><td>追加到当前章节或列表项</td><td><code>target.appendLine()</code> — 内容累积</td></tr>
+            <tr><td><code>LIST_ITEM / STEP_ITEM</code></td><td>解析列表父节点，创建列表节点，注册栈</td><td><code>currentListItem=新节点</code></td></tr>
+            <tr><td><code>HEADING / HEADING_CANDIDATE</code></td><td>创建章节节点，推导深度和父节点</td><td><code>currentSection=新节点, listStack.clear()</code></td></tr>
+          </tbody>
+        </table>
+
+        <h5>深度推导策略（resolveHeadingDepth）</h5>
+        <p>不同来源的标题用不同方式决定层级深度：</p>
+        <div class="highlight-grid">
+          <div class="cell">
+            <strong>Markdown</strong> — 直接取 <code>#</code> 数量：<br>
+            <code>###### → depth=6</code>
+          </div>
+          <div class="cell">
+            <strong>Chapter/Appendix</strong> — 强制 depth=1：<br>
+            <code>"第三章" → depth=1</code>
+          </div>
+          <div class="cell">
+            <strong>Decimal</strong> — 通过 numericPath 找父节点推导：<br>
+            <code>"1.2.3" → parent=1.2 → depth=3</code>
+          </div>
+          <div class="cell">
+            <strong>Plain/Ambiguous</strong> — 使用 context 推断：<br>
+            <code>前有空行→depth=1，否则 depth=2</code>
+          </div>
+        </div>
+
+        <h5>列表嵌套栈</h5>
+        <p>使用 <code>Deque&lt;ListContext&gt;</code>（双端队列作为栈）维护嵌套列表的缩进层级：</p>
+        <div class="code-block">// 示例：缩进层级决定父子关系
+1. 第一步           ← indent=0, parent=Section
+    1.1 子步骤     ← indent=4 &gt; 0 → parent=上一步
+    1.2 另一个子步 ← indent=4 &gt; 0 → parent=上一步
+2. 第二步           ← indent=0, parent=Section (栈已清空)
+
+// resolveListParent:
+while (!listStack.isEmpty() &amp;&amp; listStack.peekLast().indentLevel() &gt;= indentLevel)
+    listStack.removeLast();  // 弹出缩进大于等于当前行的项</div>
+        <p><span class="key-point design">设计要点</span> 使用 <code>latestHeadingByDepth</code> 和 <code>latestHeadingByNumericPath</code> 两个缓存映射来快速确定标题的父节点。前者按深度索引最近标题（如 depth=1 最近章节作为 depth=2 的候选父级），后者按数字路径精确索引（如 "1.2" 精确查找父节点 "1"）。</p>
+        </div>
+      </div>
+
+      <!-- ===== 阶段四：校验与修复 ===== -->
+      <div class="depth-card accordion-item" id="structure-validate">
+        <div class="accordion-header" onclick="toggleAccordion(this)">
+          <h4>阶段四：校验修复 — 6步修复管道</h4>
+          <span class="accordion-arrow">▼</span>
+        </div>
+        <div class="accordion-body">
+        <p><code>DocumentStructureTreeValidator</code> 负责修复草案树中的各种结构问题，确保最终输出的结构节点候选列表完整且一致。</p>
+
+        <div class="flow-arrows" style="margin-bottom:var(--space-md)">
+          <div class="fa-node s1">Collapse</div><span class="fa-arr">→</span>
+          <div class="fa-node s2">RepairNum</div><span class="fa-arr">→</span>
+          <div class="fa-node s3">RepairParent</div><span class="fa-arr">→</span>
+          <div class="fa-node s4">Recompute</div><span class="fa-arr">→</span>
+          <div class="fa-node s5">RebuildPath</div><span class="fa-arr">→</span>
+          <div class="fa-node s6">SiblingLink</div>
+        </div>
+
+        <h5>各步骤详解</h5>
+        <div class="highlight" style="margin-bottom:var(--space-sm)">
+          <strong>① collapseSyntheticTitleSection</strong> — 合并同标题章节。如果某个一级章节的标题与文档标题完全相同（无编码），将其子节点提升到根节点下，删除该冗余章节。<br>
+          <span style="font-size:13px;color:#64748b;">场景：Markdown 文件第一个 "# 文档标题" 与文档名重复时自动折叠。</span>
+        </div>
+        <div class="highlight" style="margin-bottom:var(--space-sm)">
+          <strong>② repairNumberedHierarchy</strong> — 按数字编号修复层级。对每个有 numericPath 的章节，根据路径查找精确父节点。<br>
+          <code>1.2.3 → 父节点是 1.2 → 父节点是 1</code><br>
+          <span style="font-size:13px;color:#64748b;">场景：PDF 解析时标题深度可能丢失（如所有标题都被赋 depth=1），但编号路径保留完整。</span>
+        </div>
+        <div class="highlight" style="margin-bottom:var(--space-sm)">
+          <strong>③ repairInvalidParents</strong> — 修复无效父节点。如果某个章节的父节点居然是一个列表项（isListLike），将父级上移。<br>
+          <span style="font-size:13px;color:#64748b;">场景：不规范文档中标题跟在列表项后面被错误分配父子关系。</span>
+        </div>
+        <div class="highlight" style="margin-bottom:var(--space-sm)">
+          <strong>④ recomputeDepths</strong> — 从根节点开始重新计算所有节点的 depth。根节点 depth=0，子节点 depth = parent.depth + 1。<br>
+          <span style="font-size:13px;color:#64748b;">场景：前两步修复可能改变了父子关系，深度必须重新计算保持一致。</span>
+        </div>
+        <div class="highlight" style="margin-bottom:var(--space-sm)">
+          <strong>⑤ rebuildPaths</strong> — 重建 canonicalPath（URL风格）和 sectionPath（人类可读，用 &gt; 连接）。<br>
+          <code>canonicalPath: /document/1-2/system-overview<br>sectionPath: 第一章 &gt; 系统概述</code>
+        </div>
+        <div class="highlight">
+          <strong>⑥ rebuildSiblingLinks</strong> — 按 lineNo 排序同级节点，设置 prevSiblingNodeNo 和 nextSiblingNodeNo。<br>
+          <span style="font-size:13px;color:#64748b;">场景：Neo4j 图投影需要 NEXT_SIBLING / PREV_SIBLING 关系来支持相邻章节查询。</span>
+        </div>
+
+        <p><span class="key-point design">设计原则</span> 6 步修复按"先修复拓扑关系→再重建路径→最后补充辅助链接"的顺序执行。每一步都是确定性的纯函数，便于测试和排查问题。</p>
+        </div>
+	      </div>
+
+	      <!-- ===== 父子节点关系详解 ===== -->
+	      <div class="depth-card accordion-item" id="structure-parent">
+	        <div class="accordion-header" onclick="toggleAccordion(this)">
+	          <h4>父子节点关系 — parentNodeNo 的完整生命周期</h4>
+	          <span class="accordion-arrow">▼</span>
+	        </div>
+	        <div class="accordion-body">
+	        <p>这是贯穿"树构建 → TreeValidator修复 → DB落库 → 策略消费"的一条完整链路：</p>
+
+	        <h5>Phase 1: HierarchyResolver 首次分配 parentNodeNo</h5>
+	        <p>在状态机遍历信号时，每个新节点的 parentNodeNo 由以下规则确定：</p>
+	        <table class="depth-table">
+	          <thead><tr><th>节点类型</th><th>父节点确定方式</th><th>代码位置</th></tr></thead>
+	          <tbody>
+	            <tr><td><strong>根节点（DOCUMENT）</strong></td><td>无父节点，<code>parentNodeNo=null</code></td><td><code>HierarchyResolver:32</code></td></tr>
+	            <tr><td><strong>章节标题（SECTION）</strong></td><td><code>resolveHeadingParentNodeNo()</code> 按 depth 或 numericPath 找最近同级祖先</td><td><code>HierarchyResolver:165-171</code></td></tr>
+	            <tr><td><strong>列表项（LIST_ITEM/STEP）</strong></td><td><code>resolveListParent()</code> 用 Deque 栈按缩进层级匹配</td><td><code>HierarchyResolver:123</code></td></tr>
+	          </tbody>
+	        </table>
+	        <div class="code-block">// 标题父节点分配的核心逻辑 — resolveHeadingParentNodeNo
+Integer parentNodeNo = resolveHeadingParentNodeNo(signal, depth, drafts, ...);
+draft.setParentNodeNo(parentNodeNo);    // 标签贴到 Draft 上
+
+// 列表项父节点分配 — resolveListParent
+// 缩进>=当前行的弹出栈，缩进<当前行的栈顶项作为父节点
+DocumentStructureNodeDraft listParent = resolveListParent(signal, currentSection, listStack, root);
+draft.setParentNodeNo(listParent.getNodeNo());</div>
+
+	        <h5>Phase 2: TreeValidator 修复可能错误的父子关系</h5>
+	        <p>6 步修复管道中有两步直接修改 parentNodeNo：</p>
+	        <div class="code-block">// 步骤(b) repairNumberedHierarchy — 按编号路径修正
+// 场景：PDF 解析时深度丢失，但 numericPath 保留完整
+draft.setParentNodeNo(numericPathMap.get(chapterParentKey));
+// "1.2.3" 的父节点应该是 "1.2"，而不是被错误分配的 depth=1 节点
+
+// 步骤(c) repairInvalidParents — 上移被错误挂到列表项下的章节
+// 场景：不规范文档中 SECTION 的父级被设为 LIST_ITEM
+if (draft.isSection() &amp;&amp; parent.isListLike()) {
+    draft.setParentNodeNo(parent.getParentNodeNo());  // 上移
+}</div>
+
+	        <h5>Phase 3: DB 落库 — nodeNo -> nodeId 映射</h5>
+	        <p>数据库中的 <code>parent_node_id</code> 不是直接从 parentNodeNo 写入的，而是通过 <code>nodeIdMap</code> 翻译：</p>
+	        <div class="code-block">// DocumentStructureNodeServiceImpl.replaceDocumentNodes() :39-57
+// 第一遍遍历：每个 nodeNo -> 分配真实的 DB id
+nodeIdMap.put(candidate.getNodeNo(), uidGenerator.getUid());
+
+// 第二遍遍历：用 nodeIdMap 把 parentNodeNo 转为 parentNodeId
+entity.setParentNodeId(
+    candidate.getParentNodeNo() == null
+        ? null
+        : nodeIdMap.get(candidate.getParentNodeNo())  // 偏移量 -> 真实ID
+);</div>
+	        <p>为什么分两遍？因为结构节点在 Draft 阶段用的是 <strong>nodeNo（从1开始的序号）</strong>做引用，DB 里用雪花 ID 做主键。两遍遍历确保所有节点的 ID 先分配完，第二遍才能正确映射父子关系。</p>
+
+	        <h5>Phase 4: 策略消费 — buildStructureParentSeeds vs buildStructureChildSeeds</h5>
+	        <p>建好的树在索引构建阶段被结构策略消费，父块和子块读树的深度不同：</p>
+	        <div class="code-block">// 父块种子：只读 SECTION（章节）节点
+buildStructureParentSeeds(structureNodes) {
+    for (node : structureNodes) {
+        if (nodeType == SECTION &amp;&amp; isContentBearingSection(node)) {
+            seeds.add(toChunkCandidate(node));
+            // 父块 = 章节级内容块
+        }
+    }
+    // -> [第1章全文, 第2章全文, ...]
+}
+
+// 子块种子：按 parentNodeId 分组，读父块下的子节点
+buildStructureChildSeeds(parentSeed, structureNodes) {
+    // 先把所有节点按 parentNodeId 分组
+    childrenByParent = {
+        parentId_A -> [子节点1, 子节点2],
+        parentId_B -> [子节点3], ...
+    }
+    // 从分组中捞出当前父块的下一级孩子
+    for (child : childrenByParent.get(parentSeed.getStructureNodeId())) {
+        if (nodeType in [SECTION, STEP, LIST_ITEM]) {
+            seeds.add(toChunkCandidate(child));
+            // 子块 = 子章节/步骤/列表项内容
+        }
+    }
+    // 没子节点 -> 回退到父块自身作为子块
+    // -> [1.1内容, 步骤1内容, 列表项内容, ...]
+}</div>
+
+	        <h5>完整的树形结构示例</h5>
+	        <div class="code-block">SuperAgentDocumentStructureNode 表 (MySQL)
++---------+--------------+-----------------+------------------+
+| node_no | node_type    | parent_node_id  | content_text     |
++---------+--------------+-----------------+------------------+
+| 1       | DOCUMENT     | NULL            | 文档标题         | <- 根节点
+| 2       | SECTION      | 1               | 第一章：安装...  | <- * 父块种子
+| 3       | SECTION      | 2               | 1.1 环境准备...  | <- 子块种子
+| 4       | STEP         | 2               | 步骤1：下载...   | <- 子块种子
+| 5       | LIST_ITEM    | 2               | 注意事项...      | <- 子块种子
+| 6       | SECTION      | 1               | 第二章：配置...  | <- * 父块种子
+| 7       | BODY         | 6               | 配置说明...      | <- 附着在章节中
++---------+--------------+-----------------+------------------+
+
+// 父块流水线 [STRUCTURE, RECURSIVE]:
+buildStructureParentSeeds -> [node2(第一章), node6(第二章)]
+| 超长章节走 RECURSIVE 降级
+
+// 子块流水线 [SEMANTIC, RECURSIVE]:
+// parentSeed=node2 -> childrenByParent.get(2) -> [node3, node4, node5]
+buildStructureChildSeeds -> [node3(1.1), node4(步骤1), node5(注意事项)]
+| 超长子块走 SEMANTIC/RECURSIVE 精切
+
+// 注意：BODY 节点不会单独作为结构节点，它附着在父节点的 contentText 中</div>
+
+	        <div class="callout">
+	          <strong>面试追问预判：</strong> "parentNodeId 为什么分两遍写入？" — 因为 Draft 阶段用的是序号（nodeNo=1,2,3...）做引用，DB 主键是雪花 ID。先遍历一次把所有 nodeNo -> id 映射好，第二遍才能把 parentNodeNo 翻译成正确的 parentNodeId。第一遍分配 ID，第二遍建立关系。
+	        </div>
+	      </div>
+
+	      <!-- ===== 下游应用 ===== -->
+	      <div class="depth-card accordion-item" id="structure-downstream">
+	        <div class="accordion-header" onclick="toggleAccordion(this)">
+	          <h4>结构节点在下游的应用</h4>
+	          <span class="accordion-arrow">▼</span>
+	        </div>
+	        <div class="accordion-body">
+      </div>
+
+      <!-- ===== 下游应用 ===== -->
+      <div class="depth-card accordion-item" id="structure-downstream2">
+        <div class="accordion-header" onclick="toggleAccordion(this)">
+          <h4>结构节点在下游的应用</h4>
+          <span class="accordion-arrow">▼</span>
+        </div>
+        <div class="accordion-body">
+        <p>提取完成的结构节点经过 <code>structureNodeService.replaceDocumentNodes()</code> 写入 MySQL 后，同步到三个下游系统：</p>
+
+        <h5>1. ES 导航索引 — 章节定位（解析阶段同步）</h5>
+        <p><code>ElasticsearchDocumentNavigationIndexService.reindexDocumentNodes()</code> 将章节的 title、sectionPath、anchorText、contentText 写入 ES 索引 <code>super_agent_document_navigation</code>（IK 分词）。</p>
+        <p><strong>索引字段：</strong> nodeId, documentId, nodeType, nodeCode, title, anchorText, sectionPath, canonicalPath, contentText, depth, parentNodeId</p>
+        <p><strong>查询方式：</strong> 只查 <code>nodeType=SECTION</code> 的节点，加权多字段：<code>title^20</code>（短语匹配）+ <code>sectionPath^15</code>（短语匹配）+ <code>multi_match(title^10, sectionPath^8, anchorText^5, contentText)</code></p>
+        <p><strong>调用链路：</strong></p>
+        <div class="code-block">// 写入时机 — DocumentAsyncProcessServiceImpl.handleParseRoute() 解析阶段
+parserService.parse() → 返回 DocumentAnalysisResult
+  ↓
+structureNodeService.replaceDocumentNodes()     ← 结构节点写入 MySQL
+  ↓
+syncNavigationArtifacts()
+  ├─ navigationIndexService.reindexDocumentNodes()  ← ES 导航索引同步
+  └─ graphProjectionService.projectToGraph()         ← Neo4j 图投影同步
+
+// 读取时机 — DocumentQuestionRouter 问题路由阶段
+用户提问 → detectQuestionIntent() → 本地规则 + LLM 兜底
+  ↓ 检测到有结构导航线索
+resolveSection()
+  1. resolveBySectionCode()        ← 按章节编码匹配 "第3章" / "1.2.3"
+  2. resolveByNavigationIndex()    ← ES 导航索引搜索 ← 这里用导航索引！
+  3. resolveByLocalStructure()     ← 短语本地匹配（评分 ≥ 45）
+  4. graphService.findBestSection() ← 结构图兜底
+  ↓ 定位到目标章节后
+route() → 决定执行模式:
+  GRAPH_ONLY / GRAPH_THEN_EVIDENCE / RETRIEVAL</div>
+
+        <h5>2. ES 关键词索引 — 文本块检索（索引构建阶段写入）</h5>
+        <p><code>ElasticsearchDocumentKeywordSearchGateway.indexChunks()</code> 在索引构建阶段（Phase 5.4）将子块文本批量写入 ES 索引 <code>super_agent_document_keyword</code>（IK 分词）。</p>
+        <p><strong>索引字段：</strong> chunkId, documentId, chunkText, sectionPath, canonicalPath, parentBlockId, documentName, knowledgeScopeCode, businessCategory, documentTags, structureNodeId</p>
+        <p><strong>查询方式：</strong> multi_match 跨 <code>chunkText</code> 字段进行全文搜索，按文档、知识范围、分类等过滤</p>
+        <p><strong>调用链路：</strong></p>
+        <div class="code-block">// 写入时机 — DocumentAsyncProcessServiceImpl.handleIndexBuild() 索引构建阶段
+buildParentBlocks() + 子块切割 → chunk 实体列表
+  ↓
+vectorGateway.vectorize()       ← PGVector 向量化（10条/批）
+  ↓
+keywordSearchGateway.indexChunks()  ← ES 关键词索引写入（Phase 5.4）
+
+// 读取时机 — DocumentKnowledgeServiceImpl 检索阶段
+用户提问 → 向量化问题 → 三通道并行检索:
+  通道1: PGVector 余弦距离 `1 - (embedding &lt;=&gt; ?)`    ← 语义检索
+  通道2: ES 关键词 multi_match                         ← 关键词检索（精确术语匹配）
+  通道3: 父块提升（按 parent_block_id 分组聚合）          ← 上下文增强
+  ↓
+RRF 融合（K=60）→ 排序后的检索结果 → LLM 生成回答</div>
+
+        <h5>3. Neo4j 图投影（结构关系查询）</h5>
+        <p><code>Neo4jDocumentStructureGraphProjectionService.projectToGraph()</code> 创建 Document/Section/Item 三种标签节点以及 9 种关系边（HAS_CHILD / NEXT_SIBLING / HAS_ITEM 等）。</p>
+        <p><strong>RAG 用途：</strong> <code>GraphOnlyExecutor</code> 查询相邻章节/子章节回答结构问题；<code>GraphThenEvidenceExecutor</code> 定位具体步骤后提取证据。</p>
+
+        <h5>4. 父块分割（结构感知的切割）</h5>
+        <p>当策略推荐为 <code>STRUCTURE</code> 类型时，父块分割器按结构节点边界进行切割，每个章节成为一个独立的父块（ParentBlock），保持文档的章节完整性。</p>
+
+        <div class="callout">
+          <strong>面试追问预判：</strong> "如果 Neo4j 不可用怎么办？" — 系统设计了两层回退：① <code>CompositeDocumentStructureGraphService</code> 委托 <code>MysqlDocumentStructureGraphService</code> 在应用层用 parentNodeId 递归模拟图遍历；② <code>DocumentQuestionRouter</code> 在导航索引和结构图都不可用时回退到标准 RETRIEVAL 模式。
+        </div>
+        </div>
+      </div>
+
+      <!-- ===== 文档画像 ===== -->
+      <div class="depth-card accordion-item" id="doc-profile">
+        <div class="accordion-header" onclick="toggleAccordion(this)">
+          <h4>文档画像生成 — 纯规则驱动的文档元数据</h4>
+          <span class="accordion-arrow">▼</span>
+        </div>
+        <div class="accordion-body">
+        <p>在解析阶段（Phase 2.1），结构节点落库后紧接着调用 <code>DocumentProfileServiceImpl.generateProfile()</code>，生成一份文档级元数据摘要，不依赖 LLM，完全基于结构节点特征 + 关键词匹配。</p>
+
+        <h5>画像包含的字段</h5>
+        <table class="depth-table">
+          <thead><tr><th>字段</th><th>类型</th><th>含义</th><th>生成方式</th></tr></thead>
+          <tbody>
+            <tr><td><code>documentSummary</code></td><td>String</td><td>文档摘要</td><td>"文档《xxx》主要涵盖：A、B、C。摘要：全文前180字"</td></tr>
+            <tr><td><code>documentType</code></td><td>String</td><td>文档类型</td><td>关键词匹配：faq / troubleshooting / rule / spec / manual / intro</td></tr>
+            <tr><td><code>coreTopics</code></td><td>String[]</td><td>核心主题</td><td>取前6个章节标题，去掉编码前缀</td></tr>
+            <tr><td><code>exampleQuestions</code></td><td>String[]</td><td>示例问题</td><td>按文档类型模板生成："{主题}的步骤是什么？"</td></tr>
+            <tr><td><code>graphFriendly</code></td><td>bool</td><td>文档适合图查询</td><td>有列表项 或 章节数≥2</td></tr>
+            <tr><td><code>supportsGraphOutline</code></td><td>bool</td><td>支持图大纲</td><td>章节标题数≥2</td></tr>
+            <tr><td><code>supportsItemLookup</code></td><td>bool</td><td>支持编号项查询</td><td>结构节点中有STEP/LIST_ITEM类型</td></tr>
+            <tr><td><code>supportsGraphAssist</code></td><td>bool</td><td>支持图辅助检索</td><td>硬编码 true</td></tr>
+            <tr><td><code>knowledgeScopeCode</code></td><td>String</td><td>知识范围编码</td><td>关键词匹配：operation_rule / robot_strategy / deployment / troubleshooting / product / general_document</td></tr>
+            <tr><td><code>businessCategory</code></td><td>String</td><td>业务分类</td><td>按文档类型映射："操作手册" / "故障排查" / "介绍"</td></tr>
+            <tr><td><code>documentTags</code></td><td>String</td><td>文档标签</td><td>合并已有标签+知识范围+类型+主题，逗号分隔</td></tr>
+          </tbody>
+        </table>
+
+        <h5>文档类型推断链</h5>
+        <div class="code-block">String combined = 文档名 + 章节标题 + 全文文本（小写）
+
+contains "faq"/"常见问题"                → "faq"
+contains "故障"/"排查"/"检查顺序"         → "troubleshooting"
+contains "规则"/"制度"                    → "rule"
+contains "规格"/"参数"                    → "spec"
+contains "步骤"/"手册"/"指南"/"部署"
+       || 有列表项节点                    → "manual"
+兜底                                       → "intro"</div>
+
+        <h5>四个布尔标记的计算逻辑</h5>
+        <div class="code-block">// DocumentProfileServiceImpl.java:158-162
+supportsItemLookup = structureNodes.stream().anyMatch(node ->
+    STEP.getCode().equals(node.getNodeType())   // 步骤节点
+    || LIST_ITEM.getCode().equals(node.getNodeType()));  // 列表项节点
+
+supportsGraphOutline = sectionTitles.size() >= 2;
+
+graphFriendly = supportsItemLookup || supportsGraphOutline;
+
+supportsGraphAssist = true; // 硬编码，默认开启</div>
+
+        <h5>调用链路</h5>
+        <div class="code-block">// 写入 — DocumentAsyncProcessServiceImpl.handleParseRoute()
+parserService.parse() → 返回 DocumentAnalysisResult
+  ↓
+structureNodeService.replaceDocumentNodes()     ← 结构节点入库
+  ↓
+syncNavigationArtifacts()                       ← ES导航 + Neo4j同步
+  ↓
+documentProfileService.generateProfile()        ← 画像生成
+  ↓
+├─ SuperAgentDocumentProfile → insert/update     ← 画像表
+└─ 回填 document 表:
+   document.knowledgeScopeCode = draft.knowledgeScopeCode()
+   document.businessCategory   = draft.businessCategory()
+   document.documentTags       = draft.documentTags()
+
+// 读取 — RAG 路由 + 检索
+DocumentQuestionRouter.route()
+  → 读取画像的 graphFriendly / supportsItemLookup
+  → 决定是否启用 GRAPH_ONLY / GRAPH_THEN_EVIDENCE
+
+知识路由/ES关键词索引
+  → 读取 knowledgeScopeCode / businessCategory / documentTags
+  → 作为文档级过滤条件缩小检索范围</div>
+
+        <div class="highlight">
+          <strong>设计要点：</strong> 整份画像<strong>零 LLM 调用</strong>，全靠关键词匹配+结构节点特征。速度极快（毫秒级），且结果确定可追溯。四个布尔标记直接影响 RAG 路由是否走图执行器——文档连步骤节点都没有，就不值得尝试 GRAPH_THEN_EVIDENCE。
+        </div>
+        </div>
+      </div>
+
+      <!-- ===== 设计模式总结 ===== -->
+      <div class="depth-card accordion-item" id="structure-patterns">
+        <div class="accordion-header" onclick="toggleAccordion(this)">
+          <h4>结构节点提取中的设计模式一览</h4>
+          <span class="accordion-arrow">▼</span>
+        </div>
+        <div class="accordion-body">
+        <table class="depth-table">
+          <thead><tr><th>设计模式</th><th>出现位置</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr><td><strong>门面模式 (Facade)</strong></td><td><code>DocumentStructureNodeExtractor</code></td><td>对外暴露单一 <code>extract()</code> 方法，内部编排 4 个子组件</td></tr>
+            <tr><td><strong>责任链 (CoR)</strong></td><td><code>SignalExtractor.classify()</code></td><td>按优先级链匹配 15 级正则模式，命中即返回</td></tr>
+            <tr><td><strong>策略模式 (Strategy)</strong></td><td><code>AmbiguityResolver</code></td><td>规则 + LLM 两种策略可切换，LLM 失败自动回退规则</td></tr>
+            <tr><td><strong>状态机 (State Machine)</strong></td><td><code>HierarchyResolver.resolve()</code></td><td>switch 根据 SignalKind 驱动状态转移和上下文更新</td></tr>
+            <tr><td><strong>管道模式 (Pipeline)</strong></td><td><code>TreeValidator.validateAndBuild()</code></td><td>6 步修复依次执行，每步聚焦单一职责</td></tr>
+            <tr><td><strong>适配器模式 (Adapter)</strong></td><td><code>MysqlDocumentStructureGraphService</code></td><td>统一 <code>DocumentStructureGraphService</code> 接口平替 Neo4j</td></tr>
+          </tbody>
+        </table>
+        <p><span class="key-point design">面试加分</span> 在介绍时如果能自然地说出"这里用了<strong>门面模式</strong>对外屏蔽了 4 个子组件的复杂度"和"<strong>责任链</strong>让每级正则规则职责单一且顺序可调"，会给面试官留下不错的印象。</p>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ======== 事务 ======== -->
+    <section id="transaction">
+      <h2>为什么上传阶段要手动管理事务？</h2>
+
+      <div class="detail-card">
+        <h4>问题场景</h4>
+        <p>上传操作做了三件事：写入 MinIO → 写入 MySQL (文档记录 + 任务记录) → 发送 Kafka 消息触发异步解析。</p>
+        <p>如果 Kafka 消息在事务<strong>提交之前</strong>就被消费者拉取，消费者读取到的文档状态可能还是旧数据；反过来如果 DB 写入失败但消息已经发出，就会产生<strong>幽灵消息</strong>（消息指向一个不存在的文档）。</p>
+      </div>
+
+      <div class="detail-card">
+        <h4>源码实现：TransactionTemplate</h4>
+        <p>上传方法没有用 <code>@Transactional</code>，而是用 <code>TransactionTemplate</code> 手动控制：</p>
+        <code class="block" style="display:block; padding:var(--space-md); background:var(--muted); margin:var(--space-sm) 0; font-size:13px; line-height:1.7;">// DocumentManageServiceImpl.upload()
+// 不使用 @Transactional，而是：
+
+transactionTemplate.execute(status -&gt; {
+    // 1. insert document 记录
+    // 2. insert task 记录
+    // 3. insert task_log 记录
+    return null;
+});
+
+// ⬆ 事务在此 commit，DB 连接释放
+
+// Kafka 消息在事务提交后才发送
+kafkaProducer.sendParseRoute(documentId, ...);</code>
+        <p><strong>关键点：</strong> Kafka 发送在事务<strong>之外</strong>，确保消费者看到的 DB 状态一定是已提交的。如果事务回滚，根本不会走到发消息那行代码。</p>
+      </div>
+
+      <div class="detail-card">
+        <h4>其它操作的声明式事务</h4>
+        <p>确认策略 (<code>confirmStrategy</code>) 和触发索引构建 (<code>buildIndex</code>) 用的是 <code>@Transactional(rollbackFor = Exception.class)</code>，因为它们是单纯的 DB 写入操作，不需要协调外部消息中间件。</p>
+        <p>异步消费者 (<code>handleParseRoute</code> / <code>handleIndexBuild</code>) <strong>没有事务</strong>，各 DB 操作用自动提交。因为 Kafka 消费者本身有 at-least-once 语义，配合幂等性设计即可。</p>
+      </div>
+    </section>
+
+    <!-- ======== 同步 vs 异步 ======== -->
+    <section id="sync-async">
+      <h2>同步 vs 异步 — 边界划分</h2>
+      <p>整个文档处理链路中，<strong>Kafka 消息队列</strong>是唯一的异步边界。</p>
+
+      <div class="two-col">
+        <div class="col-card sync">
+          <h4>同步（HTTP 线程）</h4>
+          <ul>
+            <li><strong>文件上传</strong> — 用户直接等待结果，必须实时返回文档 ID</li>
+            <li><strong>策略查询</strong> — 用户需要查看推荐策略后做决策</li>
+            <li><strong>策略确认/调整</strong> — 用户交互决策点</li>
+            <li><strong>触发索引构建</strong> — 仅校验 + 发消息，毫秒级</li>
+            <li><strong>删除文档</strong> — 需要实时反馈结果</li>
+            <li>特点：均为短平快操作，不在 HTTP 线程做重计算</li>
+          </ul>
+        </div>
+        <div class="col-card async">
+          <h4>异步（Kafka 消费者）</h4>
+          <ul>
+            <li><strong>内容解析</strong> — Tika 解析大 PDF 可能数秒</li>
+            <li><strong>结构节点提取</strong> — 可能触发 LLM 歧义消除</li>
+            <li><strong>文档画像生成</strong> — 需要 LLM 调用</li>
+            <li><strong>策略推荐</strong> — 基于完整分析结果的规则计算</li>
+            <li><strong>分块 + 向量化 + ES 索引</strong> — 核心重计算</li>
+            <li>特点：耗时 > 1s，需要解耦，可以失败重试</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="callout">
+        <strong>设计原则：</strong> HTTP 同步只做<strong>状态变更和消息分发</strong>，所有<strong>计算密集型任务</strong>全部异步化。Kafka 提供削峰填谷和失败重试能力。
+      </div>
+    </section>
+
+    <!-- ======== 流水线策略 ======== -->
+    <section id="pipeline">
+      <h2>父块-子块流水线策略 — 从源码到执行</h2>
+      <p>文档切割不是一刀切，而是<strong>分层流水线</strong>：文档 → 父块（章节级回答单元）→ 子块（段落级检索单元），每层支持可插拔策略器，按策略步骤依次执行。</p>
+
+      <!-- ===== 整体架构 ===== -->
+      <div class="depth-card accordion-item">
+        <div class="accordion-header" onclick="toggleAccordion(this)">
+          <h4>为什么需要父块 + 子块两层？</h4>
+          <span class="accordion-arrow">▼</span>
+        </div>
+        <div class="accordion-body">
+        <div class="highlight-grid">
+          <div class="cell">
+            <strong>仅子块的问题</strong>
+            检索结果不知道来自哪个章节；上下文碎片化无法回溯；无法实现按章节过滤；文档大纲无法重建。
+          </div>
+          <div class="cell">
+            <strong>父块 + 子块的好处</strong>
+            检索到子块可回溯父块作为上下文；支持按章节/父块范围过滤；父块携带文档元数据减少冗余；父子块可设不同的 chunk 参数。
+          </div>
+        </div>
+        </div>
+      </div>
+
+      <!-- ===== 执行入口 ===== -->
+      <div class="depth-card accordion-item">
+        <div class="accordion-header" onclick="toggleAccordion(this)">
+          <h4>执行入口 — buildParentBlocks()</h4>
+          <span class="accordion-arrow">▼</span>
+        </div>
+        <div class="accordion-body">
+        <p>在 <code>DocumentAsyncProcessServiceImpl.handleIndexBuild()</code> 中，索引构建阶段的第一步就是调用 <code>strategyService.buildParentBlocks()</code>：</p>
+        <div class="code-block">// DocumentAsyncProcessServiceImpl.handleIndexBuild() :307-309
+String parsedText = storageService.downloadText(document.getParseTextPath());
+List&lt;ParentBlockCandidate&gt; parentBlockList = strategyService.buildParentBlocks(
+    document, plan, stepList, parsedText);</div>
+        <p><strong>输入：</strong> 解析文本、策略计划 + 策略步骤列表、结构节点列表<br>
+        <strong>输出：</strong> <code>List&lt;ParentBlockCandidate&gt;</code> — 每个父块包含自己的正文和子块列表</p>
+        </div>
+      </div>
+
+      <!-- ===== 策略推荐逻辑 ===== -->
+      <div class="depth-card accordion-item">
+        <div class="accordion-header" onclick="toggleAccordion(this)">
+          <h4>策略推荐逻辑（recommendStrategy）</h4>
+          <span class="accordion-arrow">▼</span>
+        </div>
+        <div class="accordion-body">
+        <p>解析完成后自动推荐，用户可在界面上确认或调整。</p>
+
+        <h5>父块策略推荐</h5>
+        <table class="depth-table">
+          <thead><tr><th>策略</th><th>优先级</th><th>条件</th></tr></thead>
+          <tbody>
+            <tr><td><code>STRUCTURE(1)</code></td><td>优先</td><td>文件类型为 PDF/DOC/DOCX/MD/HTML 且 结构等级≥MEDIUM 或 标题数≥2</td></tr>
+            <tr><td><code>RECURSIVE(2)</code></td><td>兜底</td><td>其他情况</td></tr>
+          </tbody>
+        </table>
+
+        <h5>子块策略推荐</h5>
+        <table class="depth-table">
+          <thead><tr><th>策略</th><th>优先级</th><th>条件</th></tr></thead>
+          <tbody>
+            <tr><td><code>LLM(4)</code></td><td>优先（默认关闭）</td><td>低质量内容 + recommendLlmWhenLowQuality=true + 字符数充足</td></tr>
+            <tr><td><code>SEMANTIC(3)</code></td><td>次优先</td><td>字符数充足 + 段落≥3 + 质量≥MEDIUM</td></tr>
+            <tr><td><code>RECURSIVE(2)</code></td><td>最后兜底</td><td>总会被追加为 fallback</td></tr>
+          </tbody>
+        </table>
+
+        <p><span class="key-point design">设计要点</span> 子块策略可配置多个，按优先级依次加入流水线。如推荐 <code>[SEMANTIC, RECURSIVE]</code>，执行时先过 SEMANTIC 分一遍，超长块再走 RECURSIVE 降级。</p>
+        </div>
+      </div>
+
+      <!-- ===== 四种策略详解 ===== -->
+      <div class="depth-card accordion-item">
+        <h4>四种策略详解</h4>
+        <table class="depth-table">
+          <thead><tr><th>策略</th><th>层级</th><th>原理</th><th>参数</th><th>适用场景</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><code>STRUCTURE(1)</code></td>
+              <td>父块/子块</td>
+              <td>按结构节点边界拆分，保留 sectionPath/canonicalPath</td>
+              <td>父块maxChars=2200<br>子块maxChars=2200</td>
+              <td>有清晰结构的文档</td>
+            </tr>
+            <tr>
+              <td><code>RECURSIVE(2)</code></td>
+              <td>父块/子块</td>
+              <td>固定大小分割+重叠，按 段落→行→句→滑动窗口 递归降级</td>
+              <td>父块: 2200/180<br>子块: 800/120</td>
+              <td>无结构文本、兜底</td>
+            </tr>
+            <tr>
+              <td><code>SEMANTIC(3)</code></td>
+              <td>子块</td>
+              <td>Jaccard 相似度句子聚类分组</td>
+              <td>maxChars=700<br>minChars=240<br>阈值=0.18</td>
+              <td>质量中上的技术文档</td>
+            </tr>
+            <tr>
+              <td><code>LLM(4)</code></td>
+              <td>子块</td>
+              <td>ChatModel 智能拆分（默认关闭）</td>
+              <td>maxChars=3500</td>
+              <td>低质量文档增强拆分</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- ===== 执行流程详解 ===== -->
+      <div class="depth-card accordion-item">
+        <div class="accordion-header" onclick="toggleAccordion(this)">
+          <h4>执行流程详解 — 从文本到父块-子块</h4>
+          <span class="accordion-arrow">▼</span>
+        </div>
+        <div class="accordion-body">
+        <p><code>buildParentBlocks()</code> 内部执行 3 步：</p>
+
+        <h5>Step 1: buildParentSeedList — 生成父块种子</h5>
+        <div class="code-block">// DocumentStrategyServiceImpl.java:217-240
+private List&lt;ChunkCandidate&gt; buildParentSeedList(String parsedText,
+    List&lt;SuperAgentDocumentStrategyStep&gt; parentSteps,
+    List&lt;SuperAgentDocumentStructureNode&gt; structureNodes) {
+
+    if (父块步骤包含 STRUCTURE && 结构节点存在) {
+        // 1a. 按结构节点切分父块
+        List&lt;ChunkCandidate&gt; structureSeeds = buildStructureParentSeeds(structureNodes);
+        if (structureSeeds 为空) return executePipeline(...)
+
+        // 1b. 剩下的父块步骤（RECURSIVE）继续处理超长结构块
+        return executePipeline(structureSeeds, remainingSteps, PARENT);
+    }
+    // 2. 无结构 → 整段文本走 executePipeline
+    return executePipeline([原始文本], parentSteps, PARENT);
+}</div>
+
+        <p><strong>buildStructureParentSeeds 细节：</strong></p>
+        <div class="code-block">// 遍历所有结构节点，筛选出"有内容的章节节点"
+for (SuperAgentDocumentStructureNode node : structureNodes) {
+    // 条件：
+    // 1. nodeType == SECTION
+    // 2. 该节点有内容（直接子节点不为空，或有 contentText）
+    // 3. 跳过"仅作为容器"的中间节点（其子节点也是 SECTION）
+    seeds.add(toChunkCandidate(node));
+}</div>
+        <p>每个结构节点转成 <code>ChunkCandidate</code> 时，携带 <code>sectionPath</code>、<code>canonicalPath</code>、<code>structureNodeId</code>、<code>itemIndex</code> 等元数据，确保父块与原始结构节点关联。</p>
+
+        <h5>Step 2: executePipeline — 流水线执行引擎</h5>
+        <div class="code-block">// DocumentStrategyServiceImpl.java:412-430
+private List&lt;ChunkCandidate&gt; executePipeline(List&lt;ChunkCandidate&gt; sourceList,
+    List&lt;SuperAgentDocumentStrategyStep&gt; orderedSteps, PipelineType type) {
+
+    List&lt;ChunkCandidate&gt; currentChunks = sourceList;
+
+    for (SuperAgentDocumentStrategyStep step : orderedSteps) {
+        currentChunks = switch (step.getStrategyType()) {
+            case STRUCTURE  -> applyStructureChunking(currentChunks, type);
+            case RECURSIVE  -> applyRecursiveChunking(currentChunks, type);
+            case SEMANTIC   -> applySemanticChunking(currentChunks, type);
+            case LLM        -> applyLlmChunking(currentChunks, type);
+        };
+        currentChunks = cleanupChunkList(currentChunks);  // 过滤空块
+    }
+    return currentChunks;
+}</div>
+        <p>流水线按步骤顺序依次执行，每步的输出是下一步的输入。每个策略器的职责：</p>
+        <table class="depth-table">
+          <thead><tr><th>策略器</th><th>行为</th></tr></thead>
+          <tbody>
+            <tr><td><code>applyStructureChunking</code></td><td>当前块如果超过 maxChars，按结构节点边界切分；否则保持原样。</td></tr>
+            <tr><td><code>applyRecursiveChunking</code></td><td>按 段落→行→句→滑动窗口 递归降级切分，直到每块 ≤ maxChars。</td></tr>
+            <tr><td><code>applySemanticChunking</code></td><td>按 Jaccard 相似度聚类句子，合并语义相近的句子为块。</td></tr>
+            <tr><td><code>applyLlmChunking</code></td><td>调用 ChatModel 智能判断切分点（默认关闭）。</td></tr>
+          </tbody>
+        </table>
+
+        <h5>Step 3: 子块切割 + 组装</h5>
+        <div class="code-block">// DocumentStrategyServiceImpl.java:192-213
+for (ParentBlockCandidate parentSeed : parentSeedList) {
+    // 对每个父块种子，调用 buildChildSeedList 生成子块
+    List&lt;ChunkCandidate&gt; childSeedList = buildChildSeedList(parentSeed, childSteps, structureNodes);
+
+    // 如果子块列表为空，将父块本身作为唯一子块
+    List&lt;ChunkCandidate&gt; finalChildren = cleanupChunkList(childSeedList);
+    if (finalChildren.isEmpty()) {
+        finalChildren = List.of(cloneChunkCandidate(parentSeed, parentSeed.getText()));
+    }
+
+    parentBlockList.add(new ParentBlockCandidate(
+        parentSeed.getSectionPath(),
+        parentSeed.getStructureNodeId(),
+        parentSeed.getStructureNodeType(),
+        parentSeed.getCanonicalPath(),
+        parentSeed.getItemIndex(),
+        parentSeed.getText(),      // 父块正文
+        parentSeed.getSourceType(),
+        finalChildren              // 子块列表
+    ));
+}</div>
+        <p>子块切割逻辑与父块类似，优先按 STRUCTURE 边界（如果有结构节点且父块绑定了 structureNodeId），再走其他策略降级。</p>
+        </div>
+      </div>
+
+      <!-- ===== 完整示例 ===== -->
+      <div class="depth-card accordion-item">
+        <div class="accordion-header" onclick="toggleAccordion(this)">
+          <h4>完整示例</h4>
+          <span class="accordion-arrow">▼</span>
+        </div>
+        <div class="accordion-body">
+        <p>文档 <code>api-guide.md</code>，解析后提取到 3 个结构节点：</p>
+        <div class="code-block">// 结构节点
+node1: "1. 认证方式"   sectionPath="认证方式"
+node2: "2. 接口列表"   sectionPath="接口列表"
+node3: "3. 错误码"     sectionPath="错误码"
+
+// 推荐策略: 父块=STRUCTURE, 子块=[SEMANTIC, RECURSIVE]
+
+// Step 1: buildParentSeedList
+// → STRUCTURE 命中，按结构节点边界切分
+// → 3 个父块种子:
+//   parentSeed1: text="API Key..." sectionPath="认证方式"
+//   parentSeed2: text="GET /users..." sectionPath="接口列表"
+//   parentSeed3: text="4xx 错误..." sectionPath="错误码"
+
+// Step 2: executePipeline（父块）
+// → STRUCTURE 已处理，无 remainingSteps → 原样输出
+
+// Step 3: 子块切割（每个父块独立处理）
+// parentSeed1 (text较长, >700):
+//   → SEMANTIC: Jaccard 聚类 → 切为 2 块
+//     child1: "支持 API Key 和 OAuth..."
+//     child2: "认证流程分为三步..."
+// parentSeed2 (text适中, 每块≤700):
+//   → SEMANTIC: 聚类后每块在范围内 → 原样
+// parentSeed3 (text短, <700):
+//   → SEMANTIC: 直接作为 1 块
+
+// 最终父块-子块结构:
+// ├─ 父块A "认证方式" (sectionPath: 认证方式)
+// │   ├─ 子块A1 "支持 API Key 和 OAuth..."
+// │   └─ 子块A2 "认证流程分为三步..."
+// ├─ 父块B "接口列表" (sectionPath: 接口列表)
+// │   └─ 子块B1 "GET /users..."
+// └─ 父块C "错误码"   (sectionPath: 错误码)
+//     └─ 子块C1 "4xx 错误..."
+
+// Step 4: 后处理（buildParentChildEntities in AsyncProcessServiceImpl）
+→ 过滤空块 → 分配全局 chunkNo → 设置 vectorStatus=WAIT_VECTOR
+→ 父块和子块分别写入 MySQL:
+   super_agent_document_parent_block
+   super_agent_document_chunk</div>
+        </div>
+      </div>
+
+      <!-- ===== 调用链路 ===== -->
+      <div class="depth-card accordion-item">
+        <div class="accordion-header" onclick="toggleAccordion(this)">
+          <h4>完整调用链路</h4>
+          <span class="accordion-arrow">▼</span>
+        </div>
+        <div class="accordion-body">
+        <div class="code-block">// 写入
+DocumentAsyncProcessServiceImpl.handleIndexBuild()
+  → strategyService.buildParentBlocks(document, plan, steps, parsedText)
+    → buildParentSeedList(parsedText, parentSteps, structureNodes)
+      → [STRUCTURE] buildStructureParentSeeds(structureNodes)
+      → [RECURSIVE] executePipeline(seeds, remainingSteps, PARENT)
+        → applyRecursiveChunking()  // 对超长结构性块降级
+    → 对每个 parentSeed:
+        → buildChildSeedList(parentSeed, childSteps, structureNodes)
+          → [STRUCTURE] buildStructureChildSeeds(parentSeed, structureNodes)
+          → [SEMANTIC] applySemanticChunking()
+          → [RECURSIVE] applyRecursiveChunking()  // 兜底降级
+    → 组装 ParentBlockCandidate 列表
+  → 过滤空块
+  → buildParentChildEntities() → 分配 ID、globalChunkNo
+  → parentBlockMapper.insert() / chunkMapper.insert()
+  → vectorGateway.vectorize()           // 向量化
+  → keywordSearchGateway.indexChunks()  // ES 关键词索引
+
+// 读取 — RAG 检索阶段
+检索命中子块 → 按 parentBlockId 分组
+  → 父块提升: bestChildScore × (1 + supportWeight + multiChannelWeight)
+  → 用父块内容替换子块作为 LLM 上下文
+  → 或保留子块+父块拼接</div>
+        </div>
+      </div>
+
+      <!-- ===== 无结构文档的 RECURSIVE 降级链路 ===== -->
+      <div class="depth-card accordion-item">
+        <div class="accordion-header" onclick="toggleAccordion(this)">
+          <h4>无结构文档的 RECURSIVE 降级链路</h4>
+          <span class="accordion-arrow">▼</span>
+        </div>
+        <div class="accordion-body">
+        <h4>无结构文档的 RECURSIVE 降级链路</h4>
+        <p>当父块和子块都回退到 RECURSIVE 时，按以下优先级逐级尝试，直到切出的块不超过阈值：</p>
+        <div class="flow-arrows">
+          <div class="fa-node s1">paragraphs</div><span class="fa-arr">→</span>
+          <div class="fa-node s2">lines</div><span class="fa-arr">→</span>
+          <div class="fa-node s3">sentences</div><span class="fa-arr">→</span>
+          <div class="fa-node s4">fixed window</div>
+        </div>
+        <p>每级切出的块如果 ≤ maxChars 则停止，否则降级到更细粒度再切。最坏情况下按固定窗口大小（maxChars - overlap）滑动截断。</p>
+        <p><span class="key-point code">关键参数</span> 父块 maxChars=2200（硬编码），子块 maxChars=800（可配置于 <code>app.manage.chunk.recursiveMaxChars</code>）。</p>
+      </div>
+
+    </section>
+    </section>
+
+    <!-- ======== 存储与 RAG 使用 ======== -->
+    <section id="storage-rag">
+      <h2>存储系统在 RAG 中的角色</h2>
+      <p>文档生命周期中产生的数据被不同存储系统承载，在 RAG 检索阶段各司其职：</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>存储</th>
+              <th>存储内容</th>
+              <th>RAG 中的使用方式</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>PGVector</strong></td>
+              <td>子块文本 + Embedding 向量</td>
+              <td><strong>向量检索通道：</strong> 将问题转为向量，余弦距离 <code>1 - (embedding &lt;=&gt; ?)</code> 检索最相似子块。<br>过滤条件：文档 ID + 任务 ID + 可选章节路径。</td>
+            </tr>
+            <tr>
+              <td><strong>ES 关键词索引</strong></td>
+              <td>子块文本、章节路径、文档元数据（IK 分词）<br><span style="font-size:12px;color:#64748b;">索引名: super_agent_document_keyword</span></td>
+              <td>
+                <p><strong>关键词检索通道（Phase 5.4 写入）：</strong> 从问题提取关键词，multi_match 跨字段搜索 chunkText + sectionPath。作为向量检索的互补通道，擅长精确术语匹配。</p>
+                <p style="margin-top:6px;font-size:13px;"><strong>调用链路：</strong></p>
+                <code style="display:block;padding:8px;margin-top:4px;font-size:12px;line-height:1.6;white-space:pre-wrap;">// 写入
+DocumentAsyncProcessServiceImpl.handleIndexBuild()
+  → vectorGateway.vectorize()                    ← 先向量化
+  → keywordSearchGateway.indexChunks()            ← 再写 ES
+
+// 读取
+DocumentKnowledgeServiceImpl 检索
+  → 三通道并行: PGVector + ES关键词 + 父块提升
+  → RRF(K=60) 融合排序
+  → 返回给 LLM 生成回答</code>
+              </td>
+            </tr>
+            <tr>
+              <td><strong>ES 导航索引</strong></td>
+              <td>结构节点标题、章节路径、锚文本、内容（IK 分词）<br><span style="font-size:12px;color:#64748b;">索引名: super_agent_document_navigation</span></td>
+              <td>
+                <p><strong>问题路由阶段章节定位（Phase 2.1 写入）：</strong> <code>DocumentQuestionRouter.resolveByNavigationIndex()</code> 在决定执行模式前，先用问题检索导航索引定位目标章节。标题字段加权最高（boost=20），确保章节识别准确。</p>
+                <p style="margin-top:6px;font-size:13px;"><strong>调用链路：</strong></p>
+                <code style="display:block;padding:8px;margin-top:4px;font-size:12px;line-height:1.6;white-space:pre-wrap;">// 写入
+parserService.parse()
+  → structureNodeService.replaceDocumentNodes()   ← MySQL 落库
+  → syncNavigationArtifacts()
+    → navigationIndexService.reindexDocumentNodes() ← ES 导航索引
+
+// 读取
+用户提问 → DocumentQuestionRouter
+  → detectQuestionIntent()                       ← 意图检测
+  → resolveSection()
+    → resolveByNavigationIndex()                 ← 这里查导航索引!
+    → route() → GRAPH_ONLY / GRAPH_THEN_EVIDENCE / RETRIEVAL</code>
+              </td>
+            </tr>
+            <tr>
+              <td><strong>Neo4j 图</strong></td>
+              <td>Document / Section / Item 节点 + HAS_CHILD / HAS_ITEM / NEXT_SIBLING 等关系</td>
+              <td><strong>图查询执行器：</strong> <code>GraphOnlyExecutor</code> 查相邻章节/子章节，直接回答"上一节/下一节/包含哪些小节"问题。<br><code>GraphThenEvidenceExecutor</code> 在图中定位具体步骤（itemIndex）后提取证据。两个执行器都不经过向量检索，纯图遍历完成。</td>
+            </tr>
+            <tr>
+              <td><strong>MySQL 结构节点表</strong></td>
+              <td>结构节点树（parentNodeId 层级关联）</td>
+              <td><strong>图回退方案：</strong> 当 Neo4j 不可用时，<code>CompositeDocumentStructureGraphService</code> 委托 <code>MysqlDocumentStructureGraphService</code>，在应用层用 parentNodeId 递归模拟图遍历（性能较图库差但仍可用）。</td>
+            </tr>
+            <tr>
+              <td><strong>MySQL 父块/子块表</strong></td>
+              <td>父块（章节级内容）+ 子块（段落级内容 + parent_block_id 关联）</td>
+              <td><strong>父块提升：</strong> 检索命中子块后，按 parent_block_id 分组，用父块内容替换子块作为 LLM 上下文。分数计算：<code>bestChildScore × (1 + supportWeight + multiChannelWeight)</code>。</td>
+            </tr>
+            <tr>
+              <td><strong>MySQL 文档画像</strong></td>
+              <td>文档摘要、类型、核心主题、示例问题</td>
+              <td><strong>知识路由：</strong> <code>KnowledgeRouteService</code> 在 AUTO_DOCUMENT 模式下，用画像内容作为 ES 路由索引的字段，辅助文档级别筛选。</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout">
+        <strong>设计要点：</strong> 五种存储（PGVector + ES 关键词 + ES 导航 + Neo4j 图 + MySQL）在 RAG 中的角色不重叠。向量检索负责语义匹配、关键词检索负责精确匹配、导航索引负责章节定位、图负责结构关系查询、MySQL 负责父块提升和画像路由。多通道检索结果通过 <strong>RRF 融合</strong>（K=60）合并为一个有序列表。
+      </div>
+
+      <!-- ===== 父块 vs 子块答疑 ===== -->
+      <div class="depth-card accordion-item">
+        <div class="accordion-header" onclick="toggleAccordion(this)">
+          <h4>常见疑问：为什么只向量化子块，父块不向量化？</h4>
+          <span class="accordion-arrow">▼</span>
+        </div>
+        <div class="accordion-body">
+        <h4>常见疑问：为什么只向量化子块，父块不向量化？</h4>
+
+        <h5>Q1: 父块为什么不向量化？</h5>
+        <p>这是 <strong>Parent-Child Retrieval</strong> 的标准设计：</p>
+        <div class="code-block">// 子块（~800字符） → 向量化 → 检索命中层
+// 职责：精准语义匹配，找到最相关的片段
+// 粒度过大 → 语义模糊，一个向量无法代表整章内容
+
+// 父块（~2200字符） → 不入向量库 → 上下文提供层
+// 职责：命中子块后，通过 parent_block_id 回溯父块
+// 用父块全文替换子块作为 LLM 上下文</div>
+        <p>如果父块也向量化：父块内容与子块高度重叠，向量几乎一样，检索时互相干扰；且父块粒度太粗，检索精度反而下降。成本和收益不成正比。</p>
+
+        <h5>Q2: 父块不是标题吗，怎么有那么多文本？</h5>
+        <p>父块不是标题节点，而是<strong>整个章节的内容聚合体</strong>。层级解析阶段通过 <code>appendLine()</code> 不断累加：</p>
+        <div class="code-block">// HierarchyResolver 状态机：正文全部往 currentSection 追加
+case HEADING → currentSection = 新章节节点  // 标题出现，切换当前章节
+case BODY    → currentSection.appendLine(line)  // 正文追加到章节
+case LIST_ITEM → currentSection.appendLine(...)  // 列表项也追加到章节
+
+// 最终 contentText 不是标题，而是整章内容：
+// "第一章：安装
+// 安装方式有两种：在线安装和离线安装。
+// 步骤1：下载安装包
+// 步骤2：双击运行
+// 步骤3：完成配置"</div>
+        <p>策略阶段 <code>buildStructureParentSeeds</code> 拿到的就是上面这一整块。所以父块能轻松到 2200 字符——它包含整个章节的正文、列表、步骤。</p>
+
+        <h5>Q3: 命中子块后怎么获取父块上下文？</h5>
+        <p>检索时子块元数据中携带 <code>parent_block_id</code>，提升阶段通过这个 ID 查数据库拿到父块内容：</p>
+        <div class="code-block">// DocumentKnowledgeServiceImpl.elevateToParentBlocks()
+// 1. 从检索结果的 metadata 中提取 parent_block_id
+Long parentBlockId = childDocument.getMetadata().get(PARENT_BLOCK_ID);
+
+// 2. 按 parent_block_id 分组
+childGroupsByParent.computeIfAbsent(parentBlockId, ...).add(childDocument);
+
+// 3. 批量查数据库拿父块
+Map&lt;Long, SuperAgentDocumentParentBlock&gt; parentBlockMap =
+    parentBlockMapper.selectList(in(parentBlockIds));
+
+// 4. 用父块内容替换子块作为 LLM 上下文
+elevatedDocuments.add(buildParentEvidenceDocument(parentBlock, childDocuments));</div>
+        <p>整个过程不走向量检索，就是一次 <code>parentBlockMapper.selectList()</code> 的数据库查询。子块负责"命中"，父块负责"提供上下文"——职责分离。</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======== 示例 ======== -->
+    <section id="example">
+      <h2>完整示例</h2>
+      <p>用户上传一份 Markdown 格式的 API 文档 <code>api-guide.md</code>：</p>
+
+      <div class="example">
+        <div class="ex-title">Phase 1 · 上传（HTTP 同步）</div>
+        <code class="block">POST /manage/document/upload  →  校验 .md / text/markdown / 128KB（通过）
+                                →  存入 MinIO: rag/document/10001/1688000000-api-guide.md
+                                →  [TransactionTemplate]
+                                   insert super_agent_document (parseStatus=PARSING, strategyStatus=WAIT_RECOMMEND)
+                                   insert super_agent_document_task (taskType=PARSE_ROUTE, currentStage=FILE_UPLOAD)
+                                →  Kafka: super-agent-document-parse-route</code>
+      </div>
+
+      <div class="example">
+        <div class="ex-title">Phase 2 · 异步解析（Kafka 消费者 — TikaDocumentParserService.parse() 内部）</div>
+        <code class="block">handleParseRoute 消费消息
+  → 下载原始文件 → Tika.parseToString() → 提取纯文本
+  → 文本清洗
+  → DocumentStructureNodeExtractor.extract()  ← 结构节点提取在 parse() 内完成！
+     识别到 "## 认证方式" "## 接口列表" "## 错误码" 三个一级结构节点
+  → [parse() 返回 DocumentAnalysisResult]
+  → 存入 MinIO: rag/parsed-text/10001.txt
+  → 结构节点入库 (replaceDocumentNodes)
+  → DocumentProfileService.generateProfile()
+     生成摘要="API 使用指南，涵盖认证、接口和错误码"
+     类型=manual, 标签=["api","guide"]
+     → 画像入库
+  → DocumentStrategyServiceImpl.recommendStrategy()
+     文件类型 MD + 结构等级 MEDIUM + 标题数 3
+     → 父块策略: STRUCTURE(1), 子块策略: [SEMANTIC(3), RECURSIVE(2)]
+     → 策略计划+步骤入库
+  → 同步导航索引（如启用）:
+     ├─ ES: title/sectionPath → super_agent_document_navigation（供问题路由定位章节）
+     └─ Neo4j: Document(10001)-[:HAS_SECTION]-&gt;Section(认证方式/接口列表/错误码)
+               + HAS_CHILD/NEXT_SIBLING 关系（供图执行器查询）
+  → 文档状态: parseStatus=PARSE_SUCCESS, strategyStatus=RECOMMENDED</code>
+      </div>
+
+      <div class="example">
+        <div class="ex-title">Phase 3 · 用户确认策略（HTTP 同步）</div>
+        <code class="block">GET  /manage/document/strategy/plan?documentId=10001  → 查看推荐策略
+POST /manage/document/strategy/confirm
+  → 用户接受系统推荐 → strategyStatus=CONFIRMED</code>
+      </div>
+
+      <div class="example">
+        <div class="ex-title">Phase 4 · 触发索引构建（HTTP 同步）</div>
+        <code class="block">POST /manage/document/index/build?documentId=10001
+  → 校验通过 → 创建 BUILD_INDEX 任务
+  → indexStatus=BUILDING
+  → Kafka: super-agent-document-index-build</code>
+      </div>
+
+      <div class="example">
+        <div class="ex-title">Phase 5 · 索引构建执行（Kafka 消费者 — 核心）</div>
+        <code class="block">handleIndexBuild 消费消息
+  → 下载解析文本
+  → buildParentBlocks()
+     ├── 父块策略: STRUCTURE
+     │   ├─ 父块A: "## 认证方式"     (sectionPath: /认证方式)
+     │   ├─ 父块B: "## 接口列表"     (sectionPath: /接口列表)
+     │   └─ 父块C: "## 错误码"       (sectionPath: /错误码)
+     └── 子块策略: [SEMANTIC, RECURSIVE]
+         ├─ 父块A → 子块A1 "API Key 认证..." + 子块A2 "OAuth 2.0 流程..."
+         ├─ 父块B → 子块B1 "GET /users..." + 子块B2 "POST /orders..."
+         └─ 父块C → 子块C1 "4xx 错误..." + 子块C2 "5xx 错误..."
+  → ChunkPostProcess: 过滤空块 → 分配序号 → 父块+子块入库
+  → Vectorize: 每10个子块一批调用 EmbeddingModel
+     → PGVector: super_agent_document_embedding upsert
+  → KeywordIndex: ES super_agent_document_keyword 写入（IK 分词）
+  → 文档状态: indexStatus=BUILD_SUCCESS → READY 🎯</code>
+      </div>
+    </section>
+
+    <!-- ======== 落库清单 ======== -->
+    <section id="storage">
+      <h2>落库清单</h2>
+      <p>以下为完整生命周期中各阶段的数据落库点（仅名称，不展开细节）：</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>阶段</th>
+              <th>存储位置</th>
+              <th>内容</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>上传</td><td>MinIO</td><td>原始文件</td></tr>
+            <tr><td>上传</td><td>MySQL</td><td>文档记录 + 任务记录 + 任务日志</td></tr>
+            <tr><td>解析完成</td><td>MinIO</td><td>解析文本</td></tr>
+            <tr><td>解析完成</td><td>MySQL</td><td>结构节点</td></tr>
+            <tr><td>解析完成</td><td>MySQL</td><td>文档画像</td></tr>
+            <tr><td>解析完成</td><td>ES</td><td>导航索引（章节定位）</td></tr>
+            <tr><td>解析完成</td><td>Neo4j</td><td>图投影（章节/步骤节点+关系，默认关闭）</td></tr>
+            <tr><td>策略推荐</td><td>MySQL</td><td>策略计划 + 策略步骤</td></tr>
+            <tr><td>索引构建</td><td>MySQL</td><td>父块记录 + 子块记录</td></tr>
+            <tr><td>索引构建</td><td>PGVector</td><td>块向量 Embedding（语义检索）</td></tr>
+            <tr><td>索引构建</td><td>ES</td><td>关键词索引 IK 分词（关键词检索）</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </div>
+</main>
+
+<!-- ============ FOOTER ============ -->
+<footer class="site-footer">
+  <div class="container">
+    文档生命周期设计文档 · v2.0（基于项目源码验证）· Minimalism &amp; Swiss Style · 2026
+  </div>
+</footer>
+
+<script>
+/* ============ 手风琴折叠 ============ */
+function toggleAccordion(header) {
+  const item = header.closest('.accordion-item');
+  const body = item.querySelector('.accordion-body');
+  const arrow = header.querySelector('.accordion-arrow');
+  const isOpen = body.classList.contains('open');
+
+  // 关闭同级（可选：在同一容器内只展开一个）
+  // const siblings = item.parentElement.querySelectorAll('.accordion-item');
+  // siblings.forEach(sib => {
+  //   if (sib !== item) {
+  //     sib.querySelector('.accordion-body')?.classList.remove('open');
+  //     sib.querySelector('.accordion-header')?.classList.remove('open');
+  //   }
+  // });
+
+  if (isOpen) {
+    body.classList.remove('open');
+    header.classList.remove('open');
+  } else {
+    body.classList.add('open');
+    header.classList.add('open');
+  }
+}
+
+/* ============ 流程图导航 ============ */
+function jumpToPhase(n) {
+  const phase = document.getElementById('phase' + n);
+  if (!phase) return;
+
+  // 展开目标 phase
+  const header = phase.querySelector('.accordion-header');
+  const body = phase.querySelector('.accordion-body');
+  if (header && body && !body.classList.contains('open')) {
+    body.classList.add('open');
+    header.classList.add('open');
+  }
+
+  // 滚动到目标
+  phase.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  // 高亮流程图节点
+  document.querySelectorAll('.flowchart-node').forEach(node => node.classList.remove('active'));
+  const node = document.querySelector('.flowchart-node[data-phase="' + n + '"]');
+  if (node) node.classList.add('active');
+}
+
+function jumpToCard(id) {
+  const card = document.getElementById(id);
+  if (!card) return;
+
+  // 展开目标卡片
+  const header = card.querySelector('.accordion-header');
+  const body = card.querySelector('.accordion-body');
+  if (header && body && !body.classList.contains('open')) {
+    body.classList.add('open');
+    header.classList.add('open');
+  }
+
+  // 滚动到目标
+  card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+/* ============ 滚动高亮当前 section ============ */
+(function() {
+  const sections = document.querySelectorAll('section[id]');
+  const navLinks = document.querySelectorAll('.nav-bar > .container > ul > li > a');
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        const id = entry.target.getAttribute('id');
+        navLinks.forEach(link => {
+          link.style.borderBottomColor = link.getAttribute('href') === '#' + id ? 'var(--primary)' : 'transparent';
+          link.style.color = link.getAttribute('href') === '#' + id ? 'var(--primary)' : '';
+        });
+      }
+    });
+  }, { rootMargin: '-20% 0px -70% 0px' });
+
+  sections.forEach(section => observer.observe(section));
+})();
+
+/* ============ 移动端菜单点击展开（替代 hover） ============ */
+(function() {
+  const isTouch = window.matchMedia('(pointer: coarse)').matches;
+  if (!isTouch) return;
+
+  document.querySelectorAll('.nav-bar li').forEach(li => {
+    const submenu = li.querySelector('.nav-submenu');
+    if (!submenu) return;
+
+    li.addEventListener('click', function(e) {
+      const isVisible = submenu.style.display === 'block';
+      // 关闭所有其他子菜单
+      document.querySelectorAll('.nav-submenu').forEach(sm => sm.style.display = '');
+      if (!isVisible) {
+        submenu.style.display = 'block';
+        e.preventDefault();
+      }
+    });
+  });
+
+  // 点击外部关闭子菜单
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('.nav-bar')) {
+      document.querySelectorAll('.nav-submenu').forEach(sm => sm.style.display = '');
+    }
+  });
+})();
+</script>
+
+</body>
+</html>
