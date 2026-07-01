@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>对话执行链路落库与后台查看 · 记录到数据库 + 管理后台可视化</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Noto+Serif+SC:wght@500;600&family=Noto+Sans+SC:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  /* ============ 设计令牌（与同目录文档一致） ============ */
+  :root{
+    --ink:#131a22;--ink-2:#161e28;--surface:#1d2733;--surface-2:#243140;
+    --rule:#2c3a49;--rule-soft:#22303d;
+    --text:#e7eef5;--text-mut:#93a4b6;--text-dim:#6b7c8f;
+    --cyan:#4fc3d6;--cyan-soft:rgba(79,195,214,.13);--cyan-line:rgba(79,195,214,.45);
+    --amber:#e6a94e;--amber-soft:rgba(230,169,78,.15);--amber-line:rgba(230,169,78,.5);
+    --green:#7fcfa1;--red:#e07a6b;
+    --violet:#b59ce6;--violet-soft:rgba(181,156,230,.14);--violet-line:rgba(181,156,230,.45);
+    --serif:"Newsreader","Noto Serif SC",Georgia,serif;
+    --sans:"IBM Plex Sans","Noto Sans SC","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+    --mono:"IBM Plex Mono","JetBrains Mono",ui-monospace,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html{font-size:16px;}
+  body{margin:0;background:radial-gradient(1200px 600px at 85% -10%,rgba(79,195,214,.06),transparent 60%),radial-gradient(1000px 700px at -10% 0%,rgba(230,169,78,.05),transparent 55%),var(--ink);color:var(--text);font-family:var(--sans);font-size:16px;line-height:1.75;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;}
+  ::selection{background:rgba(79,195,214,.28);}
+  .wrap{max-width:1140px;margin:0 auto;padding:0 28px;}
+
+  .topbar{border-bottom:1px solid var(--rule-soft);padding:22px 0 20px;}
+  .topbar .row{display:flex;align-items:baseline;justify-content:space-between;gap:16px;flex-wrap:wrap;}
+  .topbar .mark{font-family:var(--mono);font-size:.82rem;letter-spacing:.18em;text-transform:uppercase;color:var(--text-dim);}
+  .topbar .mark b{color:var(--cyan);font-weight:500;}
+  .topbar .crumb{font-family:var(--mono);font-size:.78rem;color:var(--text-dim);}
+  .topbar .crumb code{color:var(--amber);}
+
+  .hero{padding:64px 0 44px;border-bottom:1px solid var(--rule-soft);}
+  .eyebrow{font-family:var(--mono);font-size:.8rem;letter-spacing:.22em;text-transform:uppercase;color:var(--text-mut);margin-bottom:18px;display:flex;align-items:center;gap:12px;}
+  .eyebrow::before{content:"";width:28px;height:1px;background:var(--cyan);}
+  .hero h1{font-family:var(--serif);font-weight:600;font-size:clamp(2.1rem,5vw,3.4rem);line-height:1.12;letter-spacing:-.01em;margin:0 0 22px;}
+  .hero h1 em{font-style:italic;color:var(--cyan);font-weight:500;}
+  .hero h1 i{font-style:italic;color:var(--amber);font-weight:500;}
+  .hero .lede{font-size:1.08rem;color:var(--text-mut);max-width:66ch;margin:0 0 8px;}
+  .hero .lede b{color:var(--text);font-weight:500;}
+  .hero .anchor{font-family:var(--mono);font-size:.85rem;color:var(--text-dim);margin-top:18px;}
+  .hero .anchor code{color:var(--green);background:rgba(127,207,161,.1);padding:1px 7px;border-radius:4px;}
+
+  /* 写入/读取 双轨签名 */
+  .io{margin-top:46px;}
+  .io-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:18px;flex-wrap:wrap;gap:8px;}
+  .io-head .t{font-family:var(--mono);font-size:.78rem;letter-spacing:.16em;text-transform:uppercase;color:var(--text-dim);}
+  .io-head .d{font-size:.9rem;color:var(--text-mut);}
+  .io-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
+  .io-card{background:var(--surface);border:1px solid var(--rule);border-radius:12px;padding:24px 26px;position:relative;overflow:hidden;}
+  .io-card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;}
+  .io-card.write::before{background:var(--amber);}
+  .io-card.read::before{background:var(--cyan);}
+  .io-card h3{font-family:var(--serif);font-size:1.3rem;margin:0 0 6px;font-weight:600;}
+  .io-card.write h3{color:var(--amber);}
+  .io-card.read h3{color:var(--cyan);}
+  .io-card .when{font-family:var(--mono);font-size:.78rem;color:var(--text-dim);margin-bottom:14px;}
+  .io-card p{margin:0 0 10px;color:var(--text-mut);font-size:.94rem;}
+  .io-card p b{color:var(--text);font-weight:500;}
+  .io-card ul{margin:8px 0 0;padding-left:18px;color:var(--text-mut);font-size:.9rem;}
+  .io-card li{margin-bottom:5px;}
+  .io-card li code{font-family:var(--mono);font-size:.82rem;color:var(--text);background:var(--surface-2);padding:1px 5px;border-radius:4px;}
+  .io-card.write li code{color:var(--amber);}
+  .io-card.read li code{color:var(--cyan);}
+
+  section{padding:56px 0;border-bottom:1px solid var(--rule-soft);}
+  .sec-head{margin-bottom:30px;}
+  .sec-num{font-family:var(--mono);font-size:.82rem;letter-spacing:.2em;color:var(--amber);text-transform:uppercase;margin-bottom:10px;}
+  .sec-num.cyan{color:var(--cyan);}
+  .sec-num.violet{color:var(--violet);}
+  h2{font-family:var(--serif);font-weight:600;font-size:clamp(1.6rem,3.4vw,2.25rem);line-height:1.2;margin:0 0 12px;letter-spacing:-.01em;}
+  .sec-sub{color:var(--text-mut);max-width:74ch;font-size:1rem;margin:0;}
+  .sec-sub code{font-family:var(--mono);font-size:.86rem;color:var(--text);background:var(--surface-2);padding:1px 6px;border-radius:4px;}
+
+  /* 类卡片 + 方法表 */
+  .cls{background:var(--surface);border:1px solid var(--rule);border-radius:12px;padding:24px 26px 22px;margin-bottom:22px;position:relative;overflow:hidden;}
+  .cls::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;}
+  .cls.cyan::before{background:var(--cyan);} .cls.amber::before{background:var(--amber);} .cls.violet::before{background:var(--violet);} .cls.green::before{background:var(--green);}
+  .cls h3{font-family:var(--serif);font-size:1.28rem;margin:0 0 4px;font-weight:600;}
+  .cls.cyan h3{color:var(--cyan);} .cls.amber h3{color:var(--amber);} .cls.violet h3{color:var(--violet);} .cls.green h3{color:var(--green);}
+  .cls .path{font-family:var(--mono);font-size:.76rem;color:var(--text-dim);margin-bottom:6px;word-break:break-all;}
+  .cls .role{color:var(--text-mut);font-size:.94rem;margin:0 0 14px;max-width:72ch;}
+  .cls .role b{color:var(--text);font-weight:500;}
+
+  .mt{width:100%;border-collapse:collapse;font-size:.9rem;margin-top:4px;}
+  .mt th,.mt td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--rule-soft);vertical-align:top;}
+  .mt thead th{font-family:var(--mono);font-size:.74rem;letter-spacing:.1em;text-transform:uppercase;color:var(--text-dim);font-weight:500;border-bottom:1px solid var(--rule);}
+  .mt td.sig{font-family:var(--mono);font-size:.82rem;color:var(--text);width:44%;word-break:break-word;}
+  .mt td.sig .ret{color:var(--violet);} .mt td.sig .nm{color:var(--cyan);}
+  .mt td.desc{color:var(--text-mut);} .mt td.desc code{font-family:var(--mono);font-size:.8rem;color:var(--text);background:var(--surface-2);padding:1px 5px;border-radius:4px;}
+  .mt tr:last-child td{border-bottom:none;}
+
+  /* 落库总表 */
+  .tbl-wrap{overflow-x:auto;margin-top:6px;}
+  table.tbl{width:100%;border-collapse:collapse;font-size:.86rem;min-width:620px;}
+  table.tbl th,table.tbl td{text-align:left;padding:11px 14px;border-bottom:1px solid var(--rule-soft);vertical-align:top;}
+  table.tbl thead th{font-family:var(--mono);font-size:.74rem;letter-spacing:.1em;text-transform:uppercase;color:var(--text-dim);font-weight:500;border-bottom:1px solid var(--rule);}
+  table.tbl td.col{font-family:var(--mono);color:var(--cyan);white-space:nowrap;}
+  table.tbl td.typ{font-family:var(--mono);color:var(--violet);font-size:.8rem;white-space:nowrap;}
+  table.tbl td.dsc{color:var(--text-mut);} table.tbl td.dsc b{color:var(--text);font-weight:500;}
+  table.tbl tr:hover td{background:rgba(255,255,255,.015);}
+
+  /* 端点表 */
+  .ep{display:grid;grid-template-columns:90px 1fr 1fr;gap:0;border:1px solid var(--rule);border-radius:10px;overflow:hidden;margin-top:6px;}
+  .ep .m,.ep .p,.ep .d{padding:11px 16px;border-bottom:1px solid var(--rule-soft);font-size:.88rem;}
+  .ep .m{font-family:var(--mono);font-size:.74rem;color:var(--amber);letter-spacing:.06em;}
+  .ep .p{font-family:var(--mono);font-size:.82rem;color:var(--cyan);}
+  .ep .d{color:var(--text-mut);} .ep .d b{color:var(--text);font-weight:500;}
+  .ep > div:nth-last-child(-n+3){border-bottom:none;}
+  .ep .hd{font-family:var(--mono);font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--text-dim);background:var(--ink-2);font-weight:500;}
+
+  .note{margin-top:16px;padding:14px 18px;border-left:3px solid var(--rule);background:var(--ink-2);border-radius:0 8px 8px 0;font-size:.92rem;color:var(--text-mut);}
+  .note b{color:var(--text);} .note.cyan{border-left-color:var(--cyan);} .note.amber{border-left-color:var(--amber);} .note.violet{border-left-color:var(--violet);} .note.red{border-left-color:var(--red);}
+  .note code{font-family:var(--mono);font-size:.84rem;color:var(--text);background:var(--surface-2);padding:1px 6px;border-radius:4px;}
+
+  pre.code{background:var(--surface-2);border:1px solid var(--rule);border-radius:10px;padding:16px 18px;overflow-x:auto;font-family:var(--mono);font-size:.84rem;line-height:1.65;color:var(--text);margin:14px 0 0;}
+  pre.code .k{color:var(--violet);} pre.code .t{color:var(--cyan);} pre.code .s{color:var(--green);} pre.code .c{color:var(--text-dim);font-style:italic;} pre.code .n{color:var(--amber);}
+
+  .pill{display:inline-block;font-family:var(--mono);font-size:.7rem;padding:1px 8px;border-radius:20px;letter-spacing:.04em;}
+  .pill.write{background:var(--amber-soft);color:var(--amber);border:1px solid var(--amber-line);}
+  .pill.read{background:var(--cyan-soft);color:var(--cyan);border:1px solid var(--cyan-line);}
+
+  .reveal{opacity:0;transform:translateY(14px);animation:rv .7s ease forwards;}
+  @keyframes rv{to{opacity:1;transform:none;}}
+  .d1{animation-delay:.05s;}.d2{animation-delay:.15s;}.d3{animation-delay:.28s;}.d4{animation-delay:.42s;}
+  @media (prefers-reduced-motion:reduce){.reveal{opacity:1;transform:none;animation:none;}}
+
+  footer{padding:42px 0 60px;}
+  footer .f{font-family:var(--mono);font-size:.8rem;color:var(--text-dim);line-height:1.85;}
+  footer .f code{color:var(--text-mut);background:var(--surface);padding:1px 6px;border-radius:4px;}
+  footer .f b{color:var(--cyan);font-weight:500;}
+
+  @media (max-width:860px){.io-grid{grid-template-columns:1fr;}.ep{grid-template-columns:70px 1fr;}.ep .d{grid-column:1/-1;border-top:none;}}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap row">
+    <div class="mark">super-agent · 对话执行链路 <b>落库与后台查看</b></div>
+    <div class="crumb">BusinessChatService · <code>getExchangeDetail</code></div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <!-- ========== 英雄区 ========== -->
+  <div class="hero">
+    <div class="eyebrow reveal d1">写入侧落库 · 读取侧后台可视化 · 排查与优化两端打通</div>
+    <h1 class="reveal d2">一次对话<em>写进数据库</em>，<br>后台能把它<i>原样读回来</i></h1>
+    <p class="lede reveal d3">
+      路由决策、检索结果、证据评估、模型调用耗时——这些执行链路数据，<b>不是日志文件里的字符串</b>，
+      而是结构化地落进 <b style="color:var(--amber)">5 张追踪表 + 1 个聚合 JSON 列</b>。
+      管理后台通过 <code style="font-family:var(--mono);color:var(--text);background:var(--surface-2);padding:1px 6px;border-radius:4px;">/api/chat/exchange/detail</code>
+      等端点把它们原样读回，组装成 <b style="color:var(--cyan)">对话详情视图</b>，供问题排查与问答质量持续优化。
+      写入靠 <code style="font-family:var(--mono);color:var(--text);background:var(--surface-2);padding:1px 6px;border-radius:4px;">ConversationArchiveStore</code>（归档）+
+      <code style="font-family:var(--mono);color:var(--text);background:var(--surface-2);padding:1px 6px;border-radius:4px;">TraceStageStore / RetrievalObserveStore</code>（链路），
+      读取靠 <code style="font-family:var(--mono);color:var(--text);background:var(--surface-2);padding:1px 6px;border-radius:4px;">BusinessChatService</code> 的查询方法。
+    </p>
+    <div class="anchor reveal d4">详情入口 · <code>POST /api/chat/exchange/detail</code> → <code>getExchangeDetail(conversationId, exchangeId)</code></div>
+
+    <!-- 签名：写入/读取双轨 -->
+    <div class="io reveal d4">
+      <div class="io-head">
+        <span class="t">同一条链路的两个方向</span>
+        <span class="d">写 = 归档 + 链路落库 · 读 = 详情视图组装</span>
+      </div>
+      <div class="io-grid">
+        <div class="io-card write">
+          <h3>写入侧 · 落库</h3>
+          <div class="when">ConversationArchiveStore + TraceStageStore + RetrievalObserveStore</div>
+          <p>对话开始建 <b>RUNNING</b> 轮次；执行中每个阶段/通道/chunk 实时落表；结束时 <b>completeExchange</b> 把答案、引用、debugTrace、首 token / 总耗时一次性回写。</p>
+          <ul>
+            <li><code>startExchange</code> → 建 dialogue + exchange</li>
+            <li><code>startStage/finishStage</code> → trace_stage 表</li>
+            <li><code>recordChannelExecutions</code> → channel_execution 表</li>
+            <li><code>recordRetrievalResults</code> → retrieval_result 表</li>
+            <li><code>completeExchange</code> → exchange.debug_trace_json + latency</li>
+          </ul>
+        </div>
+        <div class="io-card read">
+          <h3>读取侧 · 后台查看</h3>
+          <div class="when">BusinessChatController + BusinessChatService</div>
+          <p>管理后台按会话/轮次拉数据：<b>对话详情</b>把 exchange（含 debugTrace）和全部阶段链路拼成一个视图；检索明细、通道执行、耗时基准各自独立端点。</p>
+          <ul>
+            <li><code>/exchange/detail</code> → 详情 + 阶段链路</li>
+            <li><code>/exchange/retrieval/results</code> → 每 chunk 结果</li>
+            <li><code>/exchange/channel/executions</code> → 每通道执行</li>
+            <li><code>/stage/benchmarks</code> → P50/P90/P99</li>
+            <li><code>/session/detail · /session/list</code> → 会话维度</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 1. 写入：记录到数据库 ========== -->
+  <section id="write">
+    <div class="sec-head">
+      <div class="sec-num">01 · PERSIST</div>
+      <h2>记录到数据库：什么数据，写到哪张表</h2>
+      <p class="sec-sub">执行链路的每一类数据都有对应落点。表名前的 <span class="pill write">写</span> 标注触发写入的方法。关键是 <code>completeExchange</code> 一次性回写轮次终态——答案、引用、<b>整段 debugTrace 序列化为 JSON</b>、首 token 与总耗时。</p>
+    </div>
+
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <thead><tr><th>链路数据</th><th>落库表 / 列</th><th>粒度</th><th>触发写入</th></tr></thead>
+        <tbody>
+          <tr><td class="col">路由决策</td><td class="typ">trace_stage（ROUTE 行 snapshot）+ knowledge_route_trace</td><td class="dsc">每阶段/每次路由</td><td class="dsc"><code>startStage/finishStage(ROUTE)</code> · <code>KnowledgeRouteService.recordAutoRoute/recordShadowRoute</code></td></tr>
+          <tr><td class="col">检索结果</td><td class="typ">retrieval_result</td><td class="dsc">每 chunk</td><td class="dsc"><code>RagRetrievalEngine.recordRetrievalResultObservations</code> → <code>recordRetrievalResults</code></td></tr>
+          <tr><td class="col">检索通道执行</td><td class="typ">channel_execution</td><td class="dsc">每子问题×通道</td><td class="dsc"><code>RagRetrievalEngine.recordChannelObservations</code> → <code>recordChannelExecutions</code></td></tr>
+          <tr><td class="col">证据评估</td><td class="typ">trace_stage（EVIDENCE_BUDGET 行 snapshot）</td><td class="dsc">每阶段</td><td class="dsc"><code>startStage/finishStage(EVIDENCE_BUDGET)</code>，snapshot 含预算/渲染省略引用</td></tr>
+          <tr><td class="col">模型调用耗时</td><td class="typ">exchange.debug_trace_json（modelUsageTraces）</td><td class="dsc">每次调用</td><td class="dsc"><code>ObservedChatModelService</code> → <code>addModelUsageTrace</code> → 归档时序列化</td></tr>
+          <tr><td class="col">工具调用</td><td class="typ">exchange.debug_trace_json（toolTraces）</td><td class="dsc">每次调用</td><td class="dsc">ReAct 执行器收集 <code>ChatToolTrace</code></td></tr>
+          <tr><td class="col">端到端耗时</td><td class="typ">exchange.first_token_latency_ms / total_latency_ms + stage_benchmark</td><td class="dsc">每轮 + 每 stage</td><td class="dsc"><code>completeExchange(firstResponseTimeMs,totalResponseTimeMs)</code> · <code>StageBenchmarkService.recordDuration</code></td></tr>
+          <tr><td class="col">整轮聚合</td><td class="typ">exchange.debug_trace_json（ChatDebugTrace）</td><td class="dsc">每轮</td><td class="dsc"><code>completeExchange(..., ChatDebugTrace debugTrace, ...)</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="cls amber">
+      <h3>ConversationArchiveStore — 归档存储（轮次终态写入）</h3>
+      <div class="path">chatagent/service/ConversationArchiveStore.java · MybatisConversationArchiveStore.java</div>
+      <p class="role">对话生命周期的持久化总管。开始时建会话+轮次，结束时把整轮结果（含 debugTrace JSON、latency）一次性回写。</p>
+      <table class="mt">
+        <thead><tr><th>方法签名</th><th>职责</th></tr></thead>
+        <tbody>
+          <tr><td class="sig"><span class="ret">ConversationExchangeView</span> <span class="nm">startExchange</span>(conversationId, question, chatMode, selectedDocumentId, selectedDocumentName)</td><td class="desc">upsert dialogue + INSERT exchange（RUNNING 状态），返回轮次视图</td></tr>
+          <tr><td class="sig"><span class="ret">void</span> <span class="nm">refreshSessionScope</span>(conversationId, chatMode, docId, docName)</td><td class="desc">刷新会话作用域（模式 / 选中文档）</td></tr>
+          <tr><td class="sig"><span class="ret">void</span> <span class="nm">completeExchange</span>(conversationId, exchangeId, answer, thinkingSteps, references, recommendations, usedTools, debugTrace, status, errorMessage, firstResponseTimeMs, totalResponseTimeMs)</td><td class="desc"><b>轮次终态一次性回写</b>：答案/推理步/引用/推荐/工具/整段 debugTrace JSON/状态/错误/首 token 与总耗时，并把会话置 IDLE</td></tr>
+          <tr><td class="sig"><span class="ret">Optional&lt;ConversationArchiveRecord&gt;</span> <span class="nm">getSessionRecord</span>(conversationId)</td><td class="desc">加载会话 + 全部轮次（详情视图用）</td></tr>
+          <tr><td class="sig"><span class="ret">ConversationArchivePage</span> <span class="nm">listSessionRecordPage</span>(pageNo, pageSize, keyword, chatMode, turnStatus)</td><td class="desc">分页会话列表，支持关键词 / 模式 / 轮次状态过滤</td></tr>
+          <tr><td class="sig"><span class="ret">ConversationRemovalResult</span> <span class="nm">deleteSession</span>(conversationId)</td><td class="desc">删会话 + 全部轮次（重置时调用）</td></tr>
+        </tbody>
+      </table>
+      <div class="note amber"><b>关键设计</b>：阶段/检索数据是<b>实时逐条落表</b>（即便对话中途失败也已落库，可排查）；而 <code>ChatDebugTrace</code> 是<b>内存聚合、结束时一次性序列化</b>进 <code>debug_trace_json</code> 列——两种策略并存：实时落表保排查，聚合 JSON 保回放。</div>
+    </div>
+  </section>
+
+  <!-- ========== 2. 读取：管理后台查看 ========== -->
+  <section id="read">
+    <div class="sec-head">
+      <div class="sec-num cyan">02 · QUERY</div>
+      <h2>管理后台查看：端点 + 查询方法</h2>
+      <p class="sec-sub">读取侧全部走 <code>BusinessChatController</code>（base <code>/api/chat</code>）→ <code>BusinessChatService</code> → 各 Store 的 list 方法。每个端点 <span class="pill read">读</span> 对应一张表或一个视图。</p>
+    </div>
+
+    <div class="cls cyan">
+      <h3>BusinessChatController — 管理后台端点</h3>
+      <div class="path">chatagent/controller/BusinessChatController.java</div>
+      <div class="ep">
+        <div class="m hd">METHOD</div><div class="p hd">PATH</div><div class="d hd">返回 · 对应数据</div>
+        <div class="m">POST</div><div class="p">/exchange/detail</div><div class="d"><b>ConversationExchangeDetailView</b> · 对话详情 + 全部阶段链路（路由/证据/生成/收尾）</div>
+        <div class="m">POST</div><div class="p">/exchange/retrieval/results</div><div class="d">List&lt;RetrievalResultView&gt; · 每 chunk 检索结果（排名/分数/是否选中）</div>
+        <div class="m">POST</div><div class="p">/exchange/channel/executions</div><div class="d">List&lt;ChannelExecutionView&gt; · 每通道召回/采纳/耗时</div>
+        <div class="m">POST</div><div class="p">/stage/benchmarks</div><div class="d">List&lt;StageBenchmarkView&gt; · P50/P90/P99 性能基准</div>
+        <div class="m">POST</div><div class="p">/session/detail</div><div class="d">ConversationSessionView · 整会话全部轮次</div>
+        <div class="m">POST</div><div class="p">/session/list</div><div class="d">ConversationSessionListVo · 分页 + 关键词搜索</div>
+        <div class="m">POST</div><div class="p">/session/reset</div><div class="d">ConversationResetVo · 删会话 + 全部追踪数据</div>
+        <div class="m">POST</div><div class="p">/session/stop</div><div class="d">ConversationStopVo · 停止运行中生成</div>
+      </div>
+    </div>
+
+    <div class="cls cyan">
+      <h3>BusinessChatService — 查询方法</h3>
+      <div class="path">chatagent/service/BusinessChatService.java</div>
+      <table class="mt">
+        <thead><tr><th>方法签名</th><th>职责</th></tr></thead>
+        <tbody>
+          <tr><td class="sig"><span class="ret">ConversationExchangeDetailView</span> <span class="nm">getExchangeDetail</span>(conversationId, exchangeId)</td><td class="desc"><b>详情组装核心</b>：取会话→按 exchangeId 过滤该轮→<code>traceStageStore.listStageViews()</code> 取阶段链路→拼成详情视图</td></tr>
+          <tr><td class="sig"><span class="ret">ConversationSessionView</span> <span class="nm">getSession</span>(conversationId)</td><td class="desc"><code>archiveStore.getSessionRecord()</code> → <code>toSessionView()</code> → <code>overlayRuntimeSnapshot()</code> 叠加运行时快照</td></tr>
+          <tr><td class="sig"><span class="ret">ConversationSessionListVo</span> <span class="nm">listSessions</span>(ConversationSessionListQueryDto)</td><td class="desc">分页 + 关键词 + 模式 + 轮次状态过滤，调 <code>listSessionRecordPage</code></td></tr>
+          <tr><td class="sig"><span class="ret">List&lt;RetrievalResultView&gt;</span> <span class="nm">getRetrievalResults</span>(conversationId, exchangeId)</td><td class="desc">委派 <code>retrievalObserveStore.listResults()</code></td></tr>
+          <tr><td class="sig"><span class="ret">List&lt;ChannelExecutionView&gt;</span> <span class="nm">getChannelExecutions</span>(conversationId, exchangeId)</td><td class="desc">委派 <code>retrievalObserveStore.listChannelExecutions()</code></td></tr>
+          <tr><td class="sig"><span class="ret">List&lt;StageBenchmarkView&gt;</span> <span class="nm">getStageBenchmarks</span>()</td><td class="desc">委派 <code>stageBenchmarkService.listAll()</code></td></tr>
+          <tr><td class="sig"><span class="ret">ConversationResetVo</span> <span class="nm">resetConversation</span>(conversationId)</td><td class="desc">删 stages + retrieval + channel + checkpoints + memory（全链路清理）</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="cls green">
+      <h3>ConversationExchangeDetailView — 对话详情视图</h3>
+      <div class="path">chatagent/model/ConversationExchangeDetailView.java</div>
+      <p class="role">后台"对话详情"页直接消费的复合视图：把<b>轮次本体</b>和<b>阶段链路</b>拼到一起，前端可一次拉取整条执行过程。</p>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>字段</th><th>类型</th><th>来源 / 含义</th></tr></thead>
+          <tbody>
+            <tr><td class="col">conversationId</td><td class="typ">String</td><td class="dsc">会话标识</td></tr>
+            <tr><td class="col">exchange</td><td class="typ">ConversationExchangeView</td><td class="dsc">轮次本体：问题/答案/引用/推荐/工具/<b>debugTrace</b>/latency（来自 exchange 表）</td></tr>
+            <tr><td class="col">stageTraces</td><td class="typ">List&lt;ConversationTraceStageView&gt;</td><td class="dsc">该轮全部阶段链路，按 stageOrder 排序（来自 trace_stage 表）</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="note cyan"><b>组合点</b>：一个视图同时跨 <code>exchange</code> 表（轮次终态 + debugTrace JSON）和 <code>trace_stage</code> 表（阶段明细）——这就是"每次对话的详细执行过程"在后台的物理形态。</div>
+    </div>
+  </section>
+
+  <!-- ========== 3. 详情组装数据流 ========== -->
+  <section id="detail-flow">
+    <div class="sec-head">
+      <div class="sec-num">03 · DETAIL ASSEMBLY</div>
+      <h2>"查看对话详情"的完整调用链</h2>
+      <p class="sec-sub">从后台点击某轮对话，到屏幕上看到路由决策/检索/证据/生成全过程，数据是这样流回来的。</p>
+    </div>
+    <pre class="code"><span class="c">// 后台请求：POST /api/chat/exchange/detail  body: {conversationId, exchangeId}</span>
+BusinessChatController.<span class="n">exchange</span>(dto)
+  └─ BusinessChatService.<span class="n">getExchangeDetail</span>(conversationId, exchangeId)
+
+<span class="c">// 1) 取整会话（含全部轮次）</span>
+   conversationArchiveStore.<span class="n">getSessionRecord</span>(conversationId)   <span class="c">// ← exchange 表 + dialogue 表</span>
+     → <span class="n">toSessionView</span>(record, withDetail, withDetail)
+     → <span class="n">overlayRuntimeSnapshot</span>(sessionView)            <span class="c">// 叠加运行中轮次的实时快照</span>
+
+<span class="c">// 2) 从会话里按 exchangeId 定位该轮</span>
+   sessionView.getExchanges().stream()
+     .filter(x -&gt; x.getExchangeId() == resolvedExchangeId)
+     .findFirst()                                          <span class="c">// ← exchangeView（含 debugTrace 反序列化）</span>
+
+<span class="c">// 3) 取该轮全部阶段链路</span>
+   conversationTraceStageStore.<span class="n">listStageViews</span>(conversationId, exchangeId)   <span class="c">// ← trace_stage 表</span>
+     按 stageOrder → startTime → id 升序
+
+<span class="c">// 4) 拼装详情视图返回</span>
+   <span class="k">return new</span> <span class="t">ConversationExchangeDetailView</span>(
+       conversationId,
+       exchangeView,        <span class="c">// 路由决策/证据/模型调用耗时/工具调用 → 都在 debugTrace 里</span>
+       stageTraces          <span class="c">// MEMORY/REWRITE/ROUTE/RAG_RETRIEVE/.../FINALIZE 每段状态+耗时+snapshot</span>
+   );
+
+<span class="c">// 前端还可并行拉明细端点：</span>
+<span class="c">//   /exchange/retrieval/results   → 每 chunk 排名/分数/是否选中（retrieval_result 表）</span>
+<span class="c">//   /exchange/channel/executions  → 每通道召回/采纳/耗时（channel_execution 表）</span></pre>
+    <div class="note"><b>视图分层</b>：详情视图给"骨架"（轮次 + 阶段链路），检索明细端点给"血肉"（每 chunk / 每通道）。两者按 <code>conversationId + exchangeId</code> 关联——同一轮对话的多维度数据被同一对键串联起来。</div>
+  </section>
+
+  <!-- ========== 4. 问题排查 ========== -->
+  <section id="troubleshoot">
+    <div class="sec-head">
+      <div class="sec-num">04 · TROUBLESHOOT</div>
+      <h2>问题排查：失败也能查到现场</h2>
+      <p class="sec-sub">链路数据是<b>实时逐条落表</b>的，所以即便对话中途异常，已落库的阶段记录依然完整——失败阶段还额外注入了异常类与堆栈。</p>
+    </div>
+
+    <div class="cls amber">
+      <h3>失败现场的三重记录</h3>
+      <table class="mt">
+        <thead><tr><th>排查维度</th><th>落点</th><th>怎么用</th></tr></thead>
+        <tbody>
+          <tr><td class="sig">阶段级失败</td><td class="desc">trace_stage 行 <code>stage_state=FAILED</code> + <code>error_message</code> + snapshot 内 <code>exceptionClass</code> / <code>stackTrace</code></td><td class="desc">定位是哪一段（ROUTE? RAG_RETRIEVE? ANSWER_GENERATE?）挂了；<code>failStage(handle, ..., Throwable, snapshot)</code> 自动注入堆栈</td></tr>
+          <tr><td class="sig">轮次级失败</td><td class="desc">exchange 行 <code>exchange_state=FAILED</code> + <code>finish_note</code>（errorMessage）</td><td class="desc">FINALIZE 阶段在 <code>finishWithFailure</code> 触发，整轮标失败但已归档</td></tr>
+          <tr><td class="sig">模型调用失败</td><td class="desc">debugTrace.modelUsageTraces 里 <code>status=FAILED</code> 的记录</td><td class="desc">看是哪个 provider/model 调用失败、token 消耗到哪一步</td></tr>
+          <tr><td class="sig">工具调用失败</td><td class="desc">debugTrace.toolTraces 里 <code>errorMessage</code> 非空的记录</td><td class="desc">看哪个工具（如 tavily_search）入参/执行失败</td></tr>
+        </tbody>
+      </table>
+      <div class="note red"><b>排查路径</b>：先 <code>/session/list</code> 找到失败会话 → <code>/session/detail</code> 看哪轮 <code>turnStatus=FAILED</code> → <code>/exchange/detail</code> 看 stageTraces 哪段 FAILED + snapshot 里的 stackTrace → 必要时 <code>/exchange/retrieval/results</code> 看检索是否召回不足。一条链路顺藤摸瓜。</div>
+    </div>
+  </section>
+
+  <!-- ========== 5. 持续优化问答质量 ========== -->
+  <section id="optimize">
+    <div class="sec-head">
+      <div class="sec-num violet">05 · OPTIMIZE</div>
+      <h2>持续优化问答质量：用追踪数据反哺</h2>
+      <p class="sec-sub">落库的链路数据不只是给人看现场，更是质量优化的原料——路由准确性、检索召回质量、性能瓶颈三类分析各有专属数据。</p>
+    </div>
+
+    <div class="cls violet">
+      <h3>三类质量分析的数据来源</h3>
+      <table class="mt">
+        <thead><tr><th>优化方向</th><th>数据来源</th><th>分析方式</th></tr></thead>
+        <tbody>
+          <tr><td class="sig">路由准确性</td><td class="desc"><code>super_agent_knowledge_route_trace</code> 表：<code>selectedDocumentId</code> / <code>hitSelectedDocument</code> / <code>confidence</code></td><td class="desc">DOCUMENT 模式记录<b>影子路由</b>（<code>recordShadowRoute</code>），事后比对"自动路由选的文档" vs "用户实际选的文档"（hitSelectedDocument），量化路由命中率</td></tr>
+          <tr><td class="sig">检索召回质量</td><td class="desc"><code>retrieval_result</code> 表：<code>gate_passed</code> / <code>is_elevated</code> / <code>is_selected</code> / <code>selection_reason</code> + <code>channel_execution</code> 的 <code>recalled_count</code> / <code>accepted_count</code></td><td class="desc">看每个通道的召回→采纳→最终选中漏斗；<code>original_score/rrf_score/rerank_score</code> 对比定位是召回不足还是 rerank 没排对</td></tr>
+          <tr><td class="sig">性能瓶颈</td><td class="desc"><code>stage_benchmark</code> 表：P50/P90/P99 + <code>exchange.first_token_latency_ms</code> / <code>total_latency_ms</code></td><td class="desc"><code>StageBenchmarkService</code> 按 stage+mode 滑动窗口（≤200 样本）算百分位，定位哪个阶段 P99 飙高；首 token 延迟单独看流式体感</td></tr>
+          <tr><td class="sig">成本与 token</td><td class="desc">debugTrace.modelUsageTraces：<code>promptTokens/completionTokens/estimatedCost</code></td><td class="desc">按 stageName 聚合，找 token 大户和成本高的模型调用，指导 Prompt 裁剪 / 模型替换</td></tr>
+        </tbody>
+      </table>
+      <div class="note violet"><b>闭环</b>：追踪数据 → 后台可视化 → 发现路由/检索/性能问题 → 调参（路由阈值、证据预算、rerank 策略、模型选择）→ 新一轮对话又落库 → 再看 benchmark 变化。<code>stage_benchmark</code> 的滑动窗口正是用来观测"调参前后 P50/P90 是否改善"的标尺。</div>
+    </div>
+
+    <div class="cls green">
+      <h3>StageBenchmarkService — 性能标尺</h3>
+      <div class="path">chatagent/service/StageBenchmarkService.java</div>
+      <table class="mt">
+        <thead><tr><th>方法签名</th><th>职责</th></tr></thead>
+        <tbody>
+          <tr><td class="sig"><span class="ret">void</span> <span class="nm">recordDuration</span>(stageCode, executionMode, durationMs)</td><td class="desc">每次阶段结束记一次耗时，upsert 基准行，维护最近 200 次滑动窗口并重算百分位</td></tr>
+          <tr><td class="sig"><span class="ret">List&lt;StageBenchmarkView&gt;</span> <span class="nm">listAll</span>()</td><td class="desc">查全部基准，按 stageCode 排序——后台 <code>/stage/benchmarks</code> 直接消费</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>
+    <div class="f">
+      <b>super-agent</b> · 对话执行链路落库与后台查看学习文档<br>
+      路径：<code>doc/全链路执行追踪/对话执行链路落库与后台查看.html</code><br>
+      写入：<code>ConversationArchiveStore.completeExchange</code> + <code>TraceStageStore/RetrievalObserveStore</code> → 5 表 + debug_trace_json<br>
+      读取：<code>BusinessChatController(/api/chat)</code> → <code>BusinessChatService.getExchangeDetail</code> → <code>ConversationExchangeDetailView</code><br>
+      配套：<code>全链路执行追踪.html</code>（追踪架构 / 写侧埋点机制）
+    </div>
+  </footer>
+
+</div>
+</body>
+</html>
